@@ -83,7 +83,9 @@ def _to_save(target: Unit, weapon: Weapon) -> int:
 
 def simulate(target: Unit, weapon: Weapon, attacker: Unit, trials: int = 1000) -> np.ndarray:
 
-    equipped_count = weapon.models_equipped if weapon.models_equipped is not None else attacker.models
+    equipped_count = (
+        weapon.models_equipped if weapon.models_equipped is not None else attacker.models
+    )
 
     # Determine attacks per trial by scaling per-model attacks by equipped_count
     if isinstance(weapon.attacks, int):
@@ -91,9 +93,9 @@ def simulate(target: Unit, weapon: Weapon, attacker: Unit, trials: int = 1000) -
     else:
         # Scale the dice pool by the number of models equipped
         scaled_dice = Dice(
-            weapon.attacks.n * equipped_count, 
-            weapon.attacks.sides, 
-            weapon.attacks.plus * equipped_count
+            weapon.attacks.n * equipped_count,
+            weapon.attacks.sides,
+            weapon.attacks.plus * equipped_count,
         )
         attacks_per_trial = scaled_dice.roll_trials(trials)
 
@@ -190,137 +192,505 @@ def calculate_remaining_models(unit: Unit, damage_matrix: np.ndarray) -> np.ndar
     return unit.models - dead_models
 
 
+def plot_weapon_vs_unit_heatmap(
+    attacker_units: list[Unit], target_units: list[Unit], simulate_fn, trials=2000
+):
+    """Generates a heatmap comparing mean damage of all weapons across all target units."""
+    matrix_data = []
+
+    for attacker in attacker_units:
+        for weapon in attacker.weapons:
+            w_name = f"{attacker.name}: {weapon.name}"
+            row = {"Weapon": w_name}
+            for target in target_units:
+                damage_matrix = simulate_fn(
+                    target=target, weapon=weapon, attacker=attacker, trials=trials
+                )
+                row[target.name] = np.median(damage_matrix.sum(axis=1))
+            matrix_data.append(row)
+
+    df_heatmap = pd.DataFrame(matrix_data).set_index("Weapon")
+
+    plt.figure(figsize=(12, max(6, len(df_heatmap) * 0.35)))
+
+    sns.heatmap(
+        df_heatmap,
+        annot=True,
+        fmt=".1f",
+        cmap="YlOrRd",
+        linewidths=0.5,
+        cbar_kws={"label": "Mean Expected Damage"},
+        vmin=0,
+        vmax=25,
+    )
+
+    plt.title(
+        "Expected Weapon Damage Across Target Units",
+        fontsize=14,
+        fontweight="bold",
+    )
+    plt.ylabel("Weapon")
+    plt.xlabel("Target Unit")
+    plt.tight_layout()
+    plt.show()
+
+
 if __name__ == "__main__":
 
     alf_units = [
-        Unit(name="Lucius the Eternal", toughness=5, saving_throw=2, wounds=6, models=1, invuln=4, weapons=[
-            Weapon(name="Blade of the Laer", attacks=6, skill=2, strength=8, ap=-3, damage=3),
-            Weapon(name="Lash of Torment", attacks=10, skill=2, strength=4, ap=-1, damage=1)
-        ]),
-        Unit(name="Daemon Prince of Slaanesh with Wings", toughness=9, saving_throw=2, wounds=10, models=1, invuln=4, weapons=[
-            Weapon(name="Infernal cannon", attacks=3, skill=2, strength=5, ap=-1, damage=2),
-            Weapon(name="Hellforged weapons - strike", attacks=6, skill=2, strength=8, ap=-2, damage=3),
-            Weapon(name="Hellforged weapons - sweep", attacks=14, skill=2, strength=6, ap=0, damage=1)
-        ]),
-        Unit(name="Lord Exultant", toughness=4, saving_throw=3, wounds=5, models=1, invuln=4, weapons=[
-            Weapon(name="Bolt pistol", attacks=1, skill=2, strength=4, ap=0, damage=1, lethal_hits=True),
-            Weapon(name="Phoenix power spear", attacks=5, skill=2, strength=7, ap=-2, damage=2, lethal_hits=True),
-            Weapon(name="Rapture lash", attacks=4, skill=2, strength=4, ap=-1, damage=1, lethal_hits=True),
-            Weapon(name="Close combat weapon", attacks=6, skill=2, strength=4, ap=0, damage=1, lethal_hits=True)
-        ]),
-        Unit(name="Lord Exultant (Euphoric Crown)", toughness=4, saving_throw=3, wounds=5, models=1, invuln=4, weapons=[
-            Weapon(name="Phoenix power spear", attacks=5, skill=2, strength=8, ap=-2, damage=2, lethal_hits=True),
-            Weapon(name="Rapture lash", attacks=4, skill=2, strength=5, ap=-1, damage=1, lethal_hits=True),
-            Weapon(name="Close combat weapon", attacks=6, skill=2, strength=5, ap=0, damage=1, lethal_hits=True)
-        ]),
-        Unit(name="Lord Kakophonist", toughness=5, saving_throw=2, wounds=6, models=1, invuln=4, weapons=[
-            Weapon(name="Screamer pistol", attacks=3, skill=2, strength=5, ap=-1, damage=2),
-            Weapon(name="Close combat weapon", attacks=6, skill=2, strength=4, ap=0, damage=1)
-        ]),
-        Unit(name="Infractors", toughness=4, saving_throw=3, wounds=2, models=5, invuln=None, weapons=[
-            Weapon(name="Bolt pistol", attacks=1, skill=3, strength=4, ap=0, damage=1, lethal_hits=True),
-            Weapon(name="Plasma pistol - standard", attacks=1, skill=3, strength=7, ap=-2, damage=1, lethal_hits=True),
-            Weapon(name="Plasma pistol - supercharge", attacks=1, skill=3, strength=8, ap=-3, damage=2, lethal_hits=True),
-            Weapon(name="Rapture lash", attacks=6, skill=3, strength=4, ap=-1, damage=1, lethal_hits=True),
-            Weapon(name="Duelling sabre", attacks=4, skill=3, strength=4, ap=-1, damage=1, lethal_hits=True)
-        ]),
-        Unit(name="Tormentors", toughness=4, saving_throw=3, wounds=2, models=5, invuln=None, weapons=[
-            Weapon(name="Boltgun", attacks=2, skill=3, strength=4, ap=0, damage=1),
-            Weapon(name="Plasma pistol - standard", attacks=1, skill=3, strength=7, ap=-2, damage=1),
-            Weapon(name="Plasma pistol - supercharge", attacks=1, skill=3, strength=8, ap=-3, damage=2),
-            Weapon(name="Meltagun", attacks=1, skill=3, strength=9, ap=-4, damage=Dice(1, 6)),
-            Weapon(name="Plasma gun - standard", attacks=1, skill=3, strength=7, ap=-2, damage=1),
-            Weapon(name="Plasma gun - supercharge", attacks=1, skill=3, strength=8, ap=-3, damage=2),
-            Weapon(name="Power sword", attacks=4, skill=3, strength=5, ap=-2, damage=1),
-            Weapon(name="Close combat weapon", attacks=3, skill=3, strength=4, ap=0, damage=1)
-        ]),
-        Unit(name="Flawless Blades", toughness=5, saving_throw=3, wounds=3, models=6, invuln=5, weapons=[
-            Weapon(name="Bolt pistol", attacks=1, skill=3, strength=4, ap=0, damage=1),
-            Weapon(name="Blissblade", attacks=4, skill=2, strength=6, ap=-3, damage=2)
-        ]),
-        Unit(name="Noise Marines", toughness=5, saving_throw=3, wounds=2, models=6, invuln=None, weapons=[
-            Weapon(name="Sonic blaster", attacks=3, skill=3, strength=5, ap=-1, damage=2),
-            Weapon(name="Blastmaster - varied frequency", attacks=6, skill=3, strength=6, ap=-2, damage=1),
-            Weapon(name="Blastmaster - single frequency", attacks=3, skill=3, strength=10, ap=-2, damage=3)
-        ])
+        Unit(
+            name="Lucius the Eternal",
+            toughness=5,
+            saving_throw=2,
+            wounds=6,
+            models=1,
+            invuln=4,
+            weapons=[
+                Weapon(name="Blade of the Laer", attacks=6, skill=2, strength=8, ap=-3, damage=3),
+                Weapon(name="Lash of Torment", attacks=10, skill=2, strength=4, ap=-1, damage=1),
+            ],
+        ),
+        Unit(
+            name="Daemon Prince of Slaanesh with Wings",
+            toughness=9,
+            saving_throw=2,
+            wounds=10,
+            models=1,
+            invuln=4,
+            weapons=[
+                Weapon(name="Infernal cannon", attacks=3, skill=2, strength=5, ap=-1, damage=2),
+                Weapon(
+                    name="Hellforged weapons - strike",
+                    attacks=6,
+                    skill=2,
+                    strength=8,
+                    ap=-2,
+                    damage=3,
+                ),
+                Weapon(
+                    name="Hellforged weapons - sweep",
+                    attacks=14,
+                    skill=2,
+                    strength=6,
+                    ap=0,
+                    damage=1,
+                ),
+            ],
+        ),
+        Unit(
+            name="Lord Exultant",
+            toughness=4,
+            saving_throw=3,
+            wounds=5,
+            models=1,
+            invuln=4,
+            weapons=[
+                Weapon(
+                    name="Bolt pistol",
+                    attacks=1,
+                    skill=2,
+                    strength=4,
+                    ap=0,
+                    damage=1,
+                    lethal_hits=True,
+                ),
+                Weapon(
+                    name="Phoenix power spear",
+                    attacks=5,
+                    skill=2,
+                    strength=7,
+                    ap=-2,
+                    damage=2,
+                    lethal_hits=True,
+                ),
+                Weapon(
+                    name="Rapture lash",
+                    attacks=4,
+                    skill=2,
+                    strength=4,
+                    ap=-1,
+                    damage=1,
+                    lethal_hits=True,
+                ),
+                Weapon(
+                    name="Close combat weapon",
+                    attacks=6,
+                    skill=2,
+                    strength=4,
+                    ap=0,
+                    damage=1,
+                    lethal_hits=True,
+                ),
+            ],
+        ),
+        Unit(
+            name="Lord Exultant (Euphoric Crown)",
+            toughness=4,
+            saving_throw=3,
+            wounds=5,
+            models=1,
+            invuln=4,
+            weapons=[
+                Weapon(
+                    name="Phoenix power spear",
+                    attacks=5,
+                    skill=2,
+                    strength=8,
+                    ap=-2,
+                    damage=2,
+                    lethal_hits=True,
+                ),
+                Weapon(
+                    name="Rapture lash",
+                    attacks=4,
+                    skill=2,
+                    strength=5,
+                    ap=-1,
+                    damage=1,
+                    lethal_hits=True,
+                ),
+                Weapon(
+                    name="Close combat weapon",
+                    attacks=6,
+                    skill=2,
+                    strength=5,
+                    ap=0,
+                    damage=1,
+                    lethal_hits=True,
+                ),
+            ],
+        ),
+        Unit(
+            name="Lord Kakophonist",
+            toughness=5,
+            saving_throw=2,
+            wounds=6,
+            models=1,
+            invuln=4,
+            weapons=[
+                Weapon(name="Screamer pistol", attacks=3, skill=2, strength=5, ap=-1, damage=2),
+                Weapon(name="Close combat weapon", attacks=6, skill=2, strength=4, ap=0, damage=1),
+            ],
+        ),
+        Unit(
+            name="Infractors",
+            toughness=4,
+            saving_throw=3,
+            wounds=2,
+            models=5,
+            invuln=None,
+            weapons=[
+                Weapon(
+                    name="Bolt pistol",
+                    attacks=1,
+                    skill=3,
+                    strength=4,
+                    ap=0,
+                    damage=1,
+                    lethal_hits=True,
+                ),
+                Weapon(
+                    name="Plasma pistol - standard",
+                    attacks=1,
+                    skill=3,
+                    strength=7,
+                    ap=-2,
+                    damage=1,
+                    lethal_hits=True,
+                ),
+                Weapon(
+                    name="Plasma pistol - supercharge",
+                    attacks=1,
+                    skill=3,
+                    strength=8,
+                    ap=-3,
+                    damage=2,
+                    lethal_hits=True,
+                ),
+                Weapon(
+                    name="Rapture lash",
+                    attacks=6,
+                    skill=3,
+                    strength=4,
+                    ap=-1,
+                    damage=1,
+                    lethal_hits=True,
+                ),
+                Weapon(
+                    name="Duelling sabre",
+                    attacks=4,
+                    skill=3,
+                    strength=4,
+                    ap=-1,
+                    damage=1,
+                    lethal_hits=True,
+                ),
+            ],
+        ),
+        Unit(
+            name="Tormentors",
+            toughness=4,
+            saving_throw=3,
+            wounds=2,
+            models=5,
+            invuln=None,
+            weapons=[
+                Weapon(name="Boltgun", attacks=2, skill=3, strength=4, ap=0, damage=1),
+                Weapon(
+                    name="Plasma pistol - standard", attacks=1, skill=3, strength=7, ap=-2, damage=1
+                ),
+                Weapon(
+                    name="Plasma pistol - supercharge",
+                    attacks=1,
+                    skill=3,
+                    strength=8,
+                    ap=-3,
+                    damage=2,
+                ),
+                Weapon(name="Meltagun", attacks=1, skill=3, strength=9, ap=-4, damage=Dice(1, 6)),
+                Weapon(
+                    name="Plasma gun - standard", attacks=1, skill=3, strength=7, ap=-2, damage=1
+                ),
+                Weapon(
+                    name="Plasma gun - supercharge", attacks=1, skill=3, strength=8, ap=-3, damage=2
+                ),
+                Weapon(name="Power sword", attacks=4, skill=3, strength=5, ap=-2, damage=1),
+                Weapon(name="Close combat weapon", attacks=3, skill=3, strength=4, ap=0, damage=1),
+            ],
+        ),
+        Unit(
+            name="Flawless Blades",
+            toughness=5,
+            saving_throw=3,
+            wounds=3,
+            models=6,
+            invuln=5,
+            weapons=[
+                Weapon(name="Bolt pistol", attacks=1, skill=3, strength=4, ap=0, damage=1),
+                Weapon(name="Blissblade", attacks=4, skill=2, strength=6, ap=-3, damage=2),
+            ],
+        ),
+        Unit(
+            name="Noise Marines",
+            toughness=5,
+            saving_throw=3,
+            wounds=2,
+            models=6,
+            invuln=None,
+            weapons=[
+                Weapon(name="Sonic blaster", attacks=3, skill=3, strength=5, ap=-1, damage=2),
+                Weapon(
+                    name="Blastmaster - varied frequency",
+                    attacks=6,
+                    skill=3,
+                    strength=6,
+                    ap=-2,
+                    damage=1,
+                ),
+                Weapon(
+                    name="Blastmaster - single frequency",
+                    attacks=3,
+                    skill=3,
+                    strength=10,
+                    ap=-2,
+                    damage=3,
+                ),
+            ],
+        ),
     ]
 
     tom_units = [
-        Unit(name="Eldrad Ulthran", toughness=4, saving_throw=6, wounds=5, models=1, invuln=4, weapons=[
-            Weapon(name="Mind War", attacks=1, skill=2, strength=5, ap=-2, damage=Dice(1, 6)),
-            Weapon(name="Shuriken Pistol", attacks=1, skill=2, strength=4, ap=-1, damage=1),
-            Weapon(name="Staff of Ulthamar and witchblade", attacks=3, skill=2, strength=5, ap=-1, damage=2)
-        ]),
-        Unit(name="Spiritseer", toughness=3, saving_throw=6, wounds=3, models=1, invuln=4, weapons=[
-            Weapon(name="Witch Staff", attacks=2, skill=2, strength=3, ap=0, damage=Dice(1, 3))
-        ]),
-        Unit(name="Guardian Defenders", toughness=3, saving_throw=4, wounds=1, models=11, invuln=None, weapons=[
-            Weapon(name="Shuriken Catapult", attacks=2, skill=3, strength=4, ap=-1, damage=1, models_equipped=10),
-            Weapon(name="Bright Lance", attacks=1, skill=3, strength=12, ap=-3, damage=Dice(1, 6, 2), models_equipped=1),
-            Weapon(name="Close Combat Weapon", attacks=1, skill=3, strength=3, ap=0, damage=1) # Applies to all 11
-        ]),
-        Unit(name="Wraithblades", toughness=6, saving_throw=2, wounds=3, models=5, invuln=4, weapons=[
-            Weapon(name="Ghostaxe", attacks=3, skill=4, strength=7, ap=-2, damage=2)
-        ]),
-        Unit(name="Wraithguard", toughness=6, saving_throw=2, wounds=3, models=5, invuln=None, weapons=[
-            Weapon(name="D-Scythe", attacks=Dice(1, 6), skill=0, strength=7, ap=-3, damage=1, torrent=True),
-            Weapon(name="Wraithcannon", attacks=1, skill=4, strength=14, ap=-4, damage=Dice(1, 6, 1)),
-            Weapon(name="Close Combat Weapon", attacks=3, skill=4, strength=5, ap=0, damage=1)
-        ]),
-        Unit(name="Windriders", toughness=4, saving_throw=4, wounds=2, models=3, invuln=6, weapons=[
-            Weapon(name="Twin shuriken catapult", attacks=2, skill=3, strength=4, ap=-1, damage=1, reroll_wound_ones=True),
-            Weapon(name="Close combat weapon", attacks=3, skill=3, strength=3, ap=0, damage=1)
-        ]),
-        Unit(name="Wraithknight with Ghostglaive", toughness=12, saving_throw=2, wounds=18, models=1, invuln=4, weapons=[
-            Weapon(name="Shuriken Cannon", attacks=3, skill=3, strength=6, ap=-1, damage=2, lethal_hits=True),
-            Weapon(name="Titanic Ghostglaive - Strike", attacks=5, skill=3, strength=16, ap=-3, damage=6),
-            Weapon(name="Titanic Ghostglaive - Sweep", attacks=15, skill=3, strength=8, ap=-2, damage=2)
-        ]),
-        Unit(name="Wraithlord", toughness=10, saving_throw=2, wounds=10, models=1, invuln=None, weapons=[
-            Weapon(name="Flamer", attacks=Dice(1, 6), skill=0, strength=4, ap=0, damage=1, torrent=True),
-            Weapon(name="Bright Lance", attacks=1, skill=4, strength=12, ap=-3, damage=Dice(1, 6, 2)),
-            Weapon(name="Ghostglaive Strike", attacks=4, skill=4, strength=10, ap=-3, damage=Dice(1, 6, 1)),
-            Weapon(name="Ghostglaive Sweep", attacks=8, skill=4, strength=7, ap=-2, damage=2)
-        ])
+        Unit(
+            name="Eldrad Ulthran",
+            toughness=4,
+            saving_throw=6,
+            wounds=5,
+            models=1,
+            invuln=4,
+            weapons=[
+                Weapon(name="Mind War", attacks=1, skill=2, strength=5, ap=-2, damage=Dice(1, 6)),
+                Weapon(name="Shuriken Pistol", attacks=1, skill=2, strength=4, ap=-1, damage=1),
+                Weapon(
+                    name="Staff of Ulthamar and witchblade",
+                    attacks=3,
+                    skill=2,
+                    strength=5,
+                    ap=-1,
+                    damage=2,
+                ),
+            ],
+        ),
+        Unit(
+            name="Spiritseer",
+            toughness=3,
+            saving_throw=6,
+            wounds=3,
+            models=1,
+            invuln=4,
+            weapons=[
+                Weapon(name="Witch Staff", attacks=2, skill=2, strength=3, ap=0, damage=Dice(1, 3))
+            ],
+        ),
+        Unit(
+            name="Guardian Defenders",
+            toughness=3,
+            saving_throw=4,
+            wounds=1,
+            models=11,
+            invuln=None,
+            weapons=[
+                Weapon(
+                    name="Shuriken Catapult",
+                    attacks=2,
+                    skill=3,
+                    strength=4,
+                    ap=-1,
+                    damage=1,
+                    models_equipped=10,
+                ),
+                Weapon(
+                    name="Bright Lance",
+                    attacks=1,
+                    skill=3,
+                    strength=12,
+                    ap=-3,
+                    damage=Dice(1, 6, 2),
+                    models_equipped=1,
+                ),
+                Weapon(
+                    name="Close Combat Weapon", attacks=1, skill=3, strength=3, ap=0, damage=1
+                ),  # Applies to all 11
+            ],
+        ),
+        Unit(
+            name="Wraithblades",
+            toughness=6,
+            saving_throw=2,
+            wounds=3,
+            models=5,
+            invuln=4,
+            weapons=[Weapon(name="Ghostaxe", attacks=3, skill=4, strength=7, ap=-2, damage=2)],
+        ),
+        Unit(
+            name="Wraithguard",
+            toughness=6,
+            saving_throw=2,
+            wounds=3,
+            models=5,
+            invuln=None,
+            weapons=[
+                Weapon(
+                    name="D-Scythe",
+                    attacks=Dice(1, 6),
+                    skill=0,
+                    strength=7,
+                    ap=-3,
+                    damage=1,
+                    torrent=True,
+                ),
+                Weapon(
+                    name="Wraithcannon",
+                    attacks=1,
+                    skill=4,
+                    strength=14,
+                    ap=-4,
+                    damage=Dice(1, 6, 1),
+                ),
+                Weapon(name="Close Combat Weapon", attacks=3, skill=4, strength=5, ap=0, damage=1),
+            ],
+        ),
+        Unit(
+            name="Windriders",
+            toughness=4,
+            saving_throw=4,
+            wounds=2,
+            models=3,
+            invuln=6,
+            weapons=[
+                Weapon(
+                    name="Twin shuriken catapult",
+                    attacks=2,
+                    skill=3,
+                    strength=4,
+                    ap=-1,
+                    damage=1,
+                    reroll_wound_ones=True,
+                ),
+                Weapon(name="Close combat weapon", attacks=3, skill=3, strength=3, ap=0, damage=1),
+            ],
+        ),
+        Unit(
+            name="Wraithknight with Ghostglaive",
+            toughness=12,
+            saving_throw=2,
+            wounds=18,
+            models=1,
+            invuln=4,
+            weapons=[
+                Weapon(
+                    name="Shuriken Cannon",
+                    attacks=3,
+                    skill=3,
+                    strength=6,
+                    ap=-1,
+                    damage=2,
+                    lethal_hits=True,
+                ),
+                Weapon(
+                    name="Titanic Ghostglaive - Strike",
+                    attacks=5,
+                    skill=3,
+                    strength=16,
+                    ap=-3,
+                    damage=6,
+                ),
+                Weapon(
+                    name="Titanic Ghostglaive - Sweep",
+                    attacks=15,
+                    skill=3,
+                    strength=8,
+                    ap=-2,
+                    damage=2,
+                ),
+            ],
+        ),
+        Unit(
+            name="Wraithlord",
+            toughness=10,
+            saving_throw=2,
+            wounds=10,
+            models=1,
+            invuln=None,
+            weapons=[
+                Weapon(
+                    name="Flamer",
+                    attacks=Dice(1, 6),
+                    skill=0,
+                    strength=4,
+                    ap=0,
+                    damage=1,
+                    torrent=True,
+                ),
+                Weapon(
+                    name="Bright Lance",
+                    attacks=1,
+                    skill=4,
+                    strength=12,
+                    ap=-3,
+                    damage=Dice(1, 6, 2),
+                ),
+                Weapon(
+                    name="Ghostglaive Strike",
+                    attacks=4,
+                    skill=4,
+                    strength=10,
+                    ap=-3,
+                    damage=Dice(1, 6, 1),
+                ),
+                Weapon(name="Ghostglaive Sweep", attacks=8, skill=4, strength=7, ap=-2, damage=2),
+            ],
+        ),
     ]
-
-    def plot_weapon_vs_unit_heatmap(attacker_units: list[Unit], target_units: list[Unit], simulate_fn, trials=2000):
-        """Generates a heatmap comparing mean damage of all weapons across all target units."""
-        matrix_data = []
-
-        for attacker in attacker_units:
-            for weapon in attacker.weapons:
-                w_name = f"{attacker.name}: {weapon.name}"
-                row = {"Weapon": w_name}
-                for target in target_units:
-                    damage_matrix = simulate_fn(target=target, weapon=weapon, attacker=attacker, trials=trials)
-                    row[target.name] = np.median(damage_matrix.sum(axis=1))
-                matrix_data.append(row)
-
-        df_heatmap = pd.DataFrame(matrix_data).set_index("Weapon")
-
-        plt.figure(figsize=(12, max(6, len(df_heatmap) * 0.35)))
-
-        sns.heatmap(
-            df_heatmap,
-            annot=True,
-            fmt=".1f",
-            cmap="YlOrRd",
-            linewidths=0.5,
-            cbar_kws={"label": "Mean Expected Damage"},
-            vmin=0,
-            vmax=25,
-        )
-
-        plt.title(
-            "Expected Weapon Damage Across Target Units",
-            fontsize=14,
-            fontweight="bold",
-        )
-        plt.ylabel("Weapon")
-        plt.xlabel("Target Unit")
-        plt.tight_layout()
-        plt.show()
 
     plot_weapon_vs_unit_heatmap(alf_units, tom_units, simulate)
     plot_weapon_vs_unit_heatmap(tom_units, alf_units, simulate)
