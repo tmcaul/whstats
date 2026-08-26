@@ -96,25 +96,17 @@ def simulate(unit: Unit, weapon: Weapon, trials: int = 1000) -> np.ndarray:
         critical_hits = np.zeros_like(attack_mask)  # Torrents don't roll, so no crits
         max_attacks_sim = max_attacks
     else:
-        unmodified_hit_rolls = np.random.randint(
-            low=1, high=7, size=(trials, max_attacks)
-        )
+        unmodified_hit_rolls = np.random.randint(low=1, high=7, size=(trials, max_attacks))
 
         if weapon.reroll_hit_ones:
             assert not weapon.reroll_all_hits
-            unmodified_hit_rerolls = np.random.randint(
-                low=1, high=7, size=(trials, max_attacks)
-            )
+            unmodified_hit_rerolls = np.random.randint(low=1, high=7, size=(trials, max_attacks))
             rerolled = unmodified_hit_rolls == 1
             unmodified_hit_rolls[rerolled] = unmodified_hit_rerolls[rerolled]
 
         elif weapon.reroll_all_hits:
-            unmodified_hit_rerolls = np.random.randint(
-                low=1, high=7, size=(trials, max_attacks)
-            )
-            unmodified_hit_rolls = np.maximum(
-                unmodified_hit_rolls, unmodified_hit_rerolls
-            )
+            unmodified_hit_rerolls = np.random.randint(low=1, high=7, size=(trials, max_attacks))
+            unmodified_hit_rolls = np.maximum(unmodified_hit_rolls, unmodified_hit_rerolls)
 
         hit_rolls = unmodified_hit_rolls + weapon.hit_bonus
         hits_mask = attack_mask & (hit_rolls >= weapon.skill)
@@ -122,34 +114,24 @@ def simulate(unit: Unit, weapon: Weapon, trials: int = 1000) -> np.ndarray:
 
     if weapon.sustained_hits:
         hits_mask = np.concatenate([hits_mask, critical_hits], axis=1)
-        critical_hits = np.concatenate(
-            [critical_hits, np.zeros_like(critical_hits)], axis=1
-        )
+        critical_hits = np.concatenate([critical_hits, np.zeros_like(critical_hits)], axis=1)
 
         max_attacks_sim = max_attacks * 2
     else:
         max_attacks_sim = max_attacks
 
     wound_thresh = _to_wound(unit, weapon)
-    unmodified_wound_rolls = np.random.randint(
-        low=1, high=7, size=(trials, max_attacks_sim)
-    )
+    unmodified_wound_rolls = np.random.randint(low=1, high=7, size=(trials, max_attacks_sim))
 
     if weapon.reroll_wound_ones:
         assert not weapon.reroll_all_wounds
-        unmodified_wound_rerolls = np.random.randint(
-            low=1, high=7, size=(trials, max_attacks_sim)
-        )
+        unmodified_wound_rerolls = np.random.randint(low=1, high=7, size=(trials, max_attacks_sim))
         rerolled = unmodified_wound_rolls == 1
         unmodified_wound_rolls[rerolled] = unmodified_wound_rerolls[rerolled]
 
     elif weapon.reroll_all_wounds:
-        unmodified_wound_rerolls = np.random.randint(
-            low=1, high=7, size=(trials, max_attacks_sim)
-        )
-        unmodified_wound_rolls = np.maximum(
-            unmodified_wound_rolls, unmodified_wound_rerolls
-        )
+        unmodified_wound_rerolls = np.random.randint(low=1, high=7, size=(trials, max_attacks_sim))
+        unmodified_wound_rolls = np.maximum(unmodified_wound_rolls, unmodified_wound_rerolls)
 
     wound_rolls = unmodified_wound_rolls + weapon.wound_bonus
     wounds_mask = hits_mask & (wound_rolls >= wound_thresh)
@@ -190,9 +172,7 @@ def calculate_remaining_models(unit: Unit, damage_matrix: np.ndarray) -> np.ndar
 
         killed_this_step = current_wounds <= 0
 
-        dead_models = np.minimum(
-            dead_models + killed_this_step.astype(int), unit.models
-        )
+        dead_models = np.minimum(dead_models + killed_this_step.astype(int), unit.models)
         current_wounds = np.where(killed_this_step, unit.wounds, current_wounds)
 
     return unit.models - dead_models
@@ -228,9 +208,7 @@ if __name__ == "__main__":
             hit_bonus=1,
             wound_bonus=1,
         ),
-        "Windriders": Weapon(
-            attacks=9, skill=3, strength=6, ap=-1, damage=2, lethal_hits=True
-        ),
+        "Windriders": Weapon(attacks=9, skill=3, strength=6, ap=-1, damage=2, lethal_hits=True),
         "Guardian Shuriken Catapult": Weapon(
             attacks=20,
             skill=3,
@@ -260,9 +238,7 @@ if __name__ == "__main__":
         remaining_models = calculate_remaining_models(u, damage_matrix)
 
         # Plot Damage Distribution (Left Column)
-        sns.histplot(
-            flattened_damage, ax=axes[i, 0], kde=True, stat="probability", discrete=True
-        )
+        sns.histplot(flattened_damage, ax=axes[i, 0], kde=True, stat="probability", discrete=True)
         axes[i, 0].set_xlabel("Total Damage")
         axes[i, 0].set_title(f"{name} - Damage Distribution")
 
