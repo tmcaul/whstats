@@ -3,6 +3,7 @@ import dataclasses
 import seaborn as sns
 import pandas as pd
 import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 
 
 @dataclasses.dataclass(frozen=True)
@@ -189,13 +190,11 @@ def calculate_remaining_models(unit: Unit, damage_matrix: np.ndarray) -> np.ndar
         dead_models = np.minimum(dead_models + killed_this_step.astype(int), unit.models)
         current_wounds = np.where(killed_this_step, unit.wounds, current_wounds)
 
-    return unit.models - dead_models
-
-
+    return (unit.models - dead_models)
 def plot_weapon_vs_unit_heatmap(
     attacker_units: list[Unit], target_units: list[Unit], simulate_fn, trials=2000
 ):
-    """Generates a heatmap comparing damage percentiles of all weapons across all target units."""
+    """Generates an interactive Plotly heatmap comparing damage percentiles of all weapons across all target units."""
     median_data = []
     annot_data = []
 
@@ -210,16 +209,10 @@ def plot_weapon_vs_unit_heatmap(
                     target=target, weapon=weapon, attacker=attacker, trials=trials
                 )
 
-                # Calculate totals for each trial
                 totals = damage_matrix.sum(axis=1)
-
-                # Calculate percentiles
                 p25, p50, p75 = np.percentile(totals, [25, 50, 75])
 
-                # Store median for the color scale
                 med_row[target.name] = p50
-
-                # Store the formatted string for the text annotation
                 ann_row[target.name] = f"{p25:.0f} - {p50:.0f} - {p75:.0f}"
 
             median_data.append(med_row)
@@ -228,35 +221,38 @@ def plot_weapon_vs_unit_heatmap(
     df_median = pd.DataFrame(median_data).set_index("Weapon")
     df_annot = pd.DataFrame(annot_data).set_index("Weapon")
 
-    plt.figure(figsize=(14, max(8, len(df_median) * 0.3)))
-
-    sns.heatmap(
-        df_median,
-        annot=df_annot,
-        fmt="",
-        cmap="YlOrRd",
-        linewidths=0.5,
-        cbar_kws={"label": "Median Damage"},
-        vmin=0,
-        vmax=25,
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=df_median.values,
+            x=df_median.columns.tolist(),
+            y=df_median.index.tolist(),
+            text=df_annot.values,
+            texttemplate="%{text}",
+            textfont={"size": 10},
+            colorscale="YlOrRd",
+            zmin=0,
+            zmax=25,
+            colorbar={"title": "Median Damage"},
+            hovertemplate="<b>Weapon:</b> %{y}<br><b>Target:</b> %{x}<br><b>Median:</b> %{z}<br><b>(P25-P50-P75):</b> %{text}<extra></extra>",
+        )
     )
 
-    plt.title(
-        "Weapon Damage",
-        fontsize=12,
-        fontweight="bold",
+    fig.update_layout(
+        title={"text": "Weapon Damage (P25 - P50 - P75)", "font": {"size": 16}},
+        xaxis_title="Target Unit",
+        yaxis_title="Weapon",
+        yaxis={"autorange": "reversed"},  # Keep top-to-bottom row order matching standard text
+        height=max(500, len(df_median) * 28 + 150),
+        margin=dict(l=200, r=50, t=60, b=80),
     )
 
-    plt.ylabel("Weapon")
-    plt.xlabel("Target Unit")
-    plt.tight_layout()
-    plt.show()
+    fig.show()
 
 
 def plot_weapon_vs_unit_kills_heatmap(
     attacker_units: list[Unit], target_units: list[Unit], simulate_fn, trials=2000
 ):
-    """Generates a heatmap comparing models killed percentiles of all weapons across all target units."""
+    """Generates an interactive Plotly heatmap comparing models killed percentiles of all weapons across all target units."""
     median_data = []
     annot_data = []
 
@@ -275,7 +271,6 @@ def plot_weapon_vs_unit_kills_heatmap(
                 killed_models = target.models - remaining_models
                 p25, p50, p75 = np.percentile(killed_models, [25, 50, 75])
 
-                # 4. Store data
                 med_row[target.name] = p50
                 ann_row[target.name] = f"{p25:.0f} - {p50:.0f} - {p75:.0f}"
 
@@ -285,28 +280,143 @@ def plot_weapon_vs_unit_kills_heatmap(
     df_median = pd.DataFrame(median_data).set_index("Weapon")
     df_annot = pd.DataFrame(annot_data).set_index("Weapon")
 
-    plt.figure(figsize=(14, max(8, len(df_median) * 0.3)))
-
-    sns.heatmap(
-        df_median,
-        annot=df_annot,
-        fmt="",
-        cmap="YlOrRd",
-        linewidths=0.5,
-        cbar_kws={"label": "Median Models Killed"},
-        vmin=0,
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=df_median.values,
+            x=df_median.columns.tolist(),
+            y=df_median.index.tolist(),
+            text=df_annot.values,
+            texttemplate="%{text}",
+            textfont={"size": 10},
+            colorscale="YlOrRd",
+            zmin=0,
+            colorbar={"title": "Median Models Killed"},
+            hovertemplate="<b>Weapon:</b> %{y}<br><b>Target:</b> %{x}<br><b>Median Kills:</b> %{z}<br><b>(P25-P50-P75):</b> %{text}<extra></extra>",
+        )
     )
 
-    plt.title(
-        "Models Killed",
-        fontsize=12,
-        fontweight="bold",
+    fig.update_layout(
+        title={"text": "Models Killed (P25 - P50 - P75)", "font": {"size": 16}},
+        xaxis_title="Target Unit",
+        yaxis_title="Weapon",
+        yaxis={"autorange": "reversed"},
+        height=max(500, len(df_median) * 28 + 150),
+        margin=dict(l=200, r=50, t=60, b=80),
     )
-    plt.ylabel("Weapon")
-    plt.xlabel("Target Unit")
-    plt.tight_layout()
-    plt.show()
 
+    fig.show()
+
+def plot_interactive_heatmap_dashboard(
+    alf_units: list[Unit], tom_units: list[Unit], simulate_fn, trials: int = 2000
+):
+    """Generates a single interactive Plotly figure containing all 4 heatmaps
+
+    with a dropdown menu to toggle between views.
+    """
+    scenarios = [
+        ("Alf attacking Tom (Damage)", alf_units, tom_units, "damage"),
+        ("Tom attacking Alf (Damage)", tom_units, alf_units, "damage"),
+        ("Alf attacking Tom (Models Killed)", alf_units, tom_units, "kills"),
+        ("Tom attacking Alf (Models Killed)", tom_units, alf_units, "kills"),
+    ]
+
+    fig = go.Figure()
+    buttons = []
+
+    for idx, (title, attackers, targets, metric) in enumerate(scenarios):
+        median_data = []
+        annot_data = []
+
+        for attacker in attackers:
+            for weapon in attacker.weapons:
+                w_name = f"{attacker.name}: {weapon.name}"
+                med_row = {"Weapon": w_name}
+                ann_row = {"Weapon": w_name}
+
+                for target in targets:
+                    damage_matrix = simulate_fn(
+                        target=target, weapon=weapon, attacker=attacker, trials=trials
+                    )
+
+                    if metric == "damage":
+                        values = damage_matrix.sum(axis=1)
+                    else:
+                        remaining_models = calculate_remaining_models(target, damage_matrix)
+                        values = target.models - remaining_models
+
+                    p25, p50, p75 = np.percentile(values, [25, 50, 75])
+                    med_row[target.name] = p50
+                    ann_row[target.name] = f"{p25:.0f} - {p50:.0f} - {p75:.0f}"
+
+                median_data.append(med_row)
+                annot_data.append(ann_row)
+
+        df_median = pd.DataFrame(median_data).set_index("Weapon")
+        df_annot = pd.DataFrame(annot_data).set_index("Weapon")
+
+        cbar_title = "Median Damage" if metric == "damage" else "Median Kills"
+        zmax = 25 if metric == "damage" else None
+
+        # Add trace for this scenario
+        fig.add_trace(
+            go.Heatmap(
+                z=df_median.values,
+                x=df_median.columns.tolist(),
+                y=df_median.index.tolist(),
+                text=df_annot.values,
+                texttemplate="%{text}",
+                textfont={"size": 10},
+                colorscale="YlOrRd",
+                zmin=0,
+                zmax=zmax,
+                visible=(idx == 0),  # Show first trace by default
+                colorbar={"title": cbar_title},
+                hovertemplate="<b>Weapon:</b> %{y}<br><b>Target:</b> %{x}<br><b>Median:</b> %{z}<br><b>(P25-P50-P75):</b> %{text}<extra></extra>",
+            )
+        )
+
+        # Build dropdown visibility mask
+        visible_mask = [False] * len(scenarios)
+        visible_mask[idx] = True
+
+        buttons.append(
+            dict(
+                label=title,
+                method="update",
+                args=[
+                    {"visible": visible_mask},
+                    {
+                        "title.text": title,
+                        "height": max(500, len(df_median) * 28 + 150),
+                    },
+                ],
+            )
+        )
+
+    # Add dropdown menu to layout
+    fig.update_layout(
+        updatemenus=[
+            dict(
+                type="dropdown",
+                direction="down",
+                active=0,
+                buttons=buttons,
+                x=0.0,
+                xanchor="left",
+                y=1.18,
+                yanchor="top",
+                showactive=True,
+            )
+        ],
+        title={"text": scenarios[0][0], "font": {"size": 16}},
+        xaxis_title="Target Unit",
+        yaxis_title="Weapon",
+        yaxis={"autorange": "reversed"},
+        height=max(500, len(scenarios[0][1]) * 28 + 150),
+        margin=dict(l=220, r=50, t=90, b=80),
+    )
+
+    fig.show()
 
 if __name__ == "__main__":
 
@@ -461,6 +571,7 @@ if __name__ == "__main__":
                     ap=0,
                     damage=1,
                     lethal_hits=True,
+                    models_equipped=4
                 ),
                 Weapon(
                     name="Plasma pistol - standard",
@@ -470,6 +581,7 @@ if __name__ == "__main__":
                     ap=-2,
                     damage=1,
                     lethal_hits=True,
+                    models_equipped=1
                 ),
                 Weapon(
                     name="Plasma pistol - supercharge",
@@ -479,6 +591,7 @@ if __name__ == "__main__":
                     ap=-3,
                     damage=2,
                     lethal_hits=True,
+                    models_equipped=1
                 ),
                 Weapon(
                     name="Rapture lash",
@@ -488,6 +601,7 @@ if __name__ == "__main__":
                     ap=-1,
                     damage=1,
                     lethal_hits=True,
+                    models_equipped=1
                 ),
                 Weapon(
                     name="Duelling sabre",
@@ -497,6 +611,7 @@ if __name__ == "__main__":
                     ap=-1,
                     damage=1,
                     lethal_hits=True,
+                    models_equipped=4
                 ),
             ],
         ),
@@ -508,9 +623,9 @@ if __name__ == "__main__":
             models=5,
             invuln=None,
             weapons=[
-                Weapon(name="Boltgun", attacks=2, skill=3, strength=4, ap=0, damage=1),
+                Weapon(name="Boltgun", attacks=2, skill=3, strength=4, ap=0, damage=1, models_equipped=2),
                 Weapon(
-                    name="Plasma pistol - standard", attacks=1, skill=3, strength=7, ap=-2, damage=1
+                    name="Plasma pistol - standard", attacks=1, skill=3, strength=7, ap=-2, damage=1, models_equipped=1
                 ),
                 Weapon(
                     name="Plasma pistol - supercharge",
@@ -519,16 +634,17 @@ if __name__ == "__main__":
                     strength=8,
                     ap=-3,
                     damage=2,
+                    models_equipped=1
                 ),
-                Weapon(name="Meltagun", attacks=1, skill=3, strength=9, ap=-4, damage=Dice(1, 6)),
+                Weapon(name="Meltagun", attacks=1, skill=3, strength=9, ap=-4, damage=Dice(1, 6), models_equipped=1),
                 Weapon(
-                    name="Plasma gun - standard", attacks=1, skill=3, strength=7, ap=-2, damage=1
+                    name="Plasma gun - standard", attacks=1, skill=3, strength=7, ap=-2, damage=1, models_equipped=1
                 ),
                 Weapon(
-                    name="Plasma gun - supercharge", attacks=1, skill=3, strength=8, ap=-3, damage=2
+                    name="Plasma gun - supercharge", attacks=1, skill=3, strength=8, ap=-3, damage=2, models_equipped=1
                 ),
-                Weapon(name="Power sword", attacks=4, skill=3, strength=5, ap=-2, damage=1),
-                Weapon(name="Close combat weapon", attacks=3, skill=3, strength=4, ap=0, damage=1),
+                Weapon(name="Power sword", attacks=4, skill=3, strength=5, ap=-2, damage=1, models_equipped=1),
+                Weapon(name="Close combat weapon", attacks=3, skill=3, strength=4, ap=0, damage=1, models_equipped=4),
             ],
         ),
         Unit(
@@ -551,7 +667,7 @@ if __name__ == "__main__":
             models=6,
             invuln=None,
             weapons=[
-                Weapon(name="Sonic blaster", attacks=3, skill=3, strength=5, ap=-1, damage=2),
+                Weapon(name="Sonic blaster", attacks=3, skill=3, strength=5, ap=-1, damage=2, models_equipped=3),
                 Weapon(
                     name="Blastmaster - varied frequency",
                     attacks=6,
@@ -559,6 +675,7 @@ if __name__ == "__main__":
                     strength=6,
                     ap=-2,
                     damage=1,
+                    models_equipped=2
                 ),
                 Weapon(
                     name="Blastmaster - single frequency",
@@ -567,6 +684,7 @@ if __name__ == "__main__":
                     strength=10,
                     ap=-2,
                     damage=3,
+                    models_equipped=2
                 ),
             ],
         ),
@@ -636,13 +754,62 @@ if __name__ == "__main__":
             ],
         ),
         Unit(
+            name="Storm Guardians",
+            toughness=3,
+            saving_throw=4,
+            wounds=1,
+            models=11,
+            invuln=5,
+            weapons=[
+                Weapon(
+                    name="Shuriken Catapult",
+                    attacks=2,
+                    skill=3,
+                    strength=4,
+                    ap=-1,
+                    damage=1,
+                    models_equipped=8,
+                ),
+                Weapon(
+                    name="Flamer",
+                    attacks=Dice(1, 6),
+                    skill=0,
+                    strength=4,
+                    ap=0,
+                    damage=1,
+                    models_equipped=2,
+                ),
+                Weapon(
+                    name="Fusion gun",
+                    attacks=1,
+                    skill=3,
+                    strength=4,
+                    ap=-1,
+                    damage=1,
+                    models_equipped=2,
+                ),
+                Weapon(
+                    name="Power sword",
+                    attacks=2,
+                    skill=3,
+                    strength=4,
+                    ap=-2,
+                    damage=1,
+                    models_equipped=2,
+                ),
+                Weapon(
+                    name="Close Combat Weapon", attacks=1, skill=3, strength=3, ap=0, damage=1, models_equipped=8
+                ),  # Applies to all 11
+            ],
+        ),
+        Unit(
             name="Wraithblades",
             toughness=6,
             saving_throw=2,
             wounds=3,
             models=5,
             invuln=4,
-            weapons=[Weapon(name="Ghostaxe", attacks=3, skill=4, strength=7, ap=-2, damage=2)],
+            weapons=[Weapon(name="Ghostaxe", attacks=3, skill=4, strength=7, ap=-2, damage=2, hit_bonus=1)],
         ),
         Unit(
             name="Wraithguard",
@@ -660,6 +827,7 @@ if __name__ == "__main__":
                     ap=-3,
                     damage=1,
                     torrent=True,
+                    hit_bonus=1,
                 ),
                 Weapon(
                     name="Wraithcannon",
@@ -668,6 +836,7 @@ if __name__ == "__main__":
                     strength=14,
                     ap=-4,
                     damage=Dice(1, 6, 1),
+                    hit_bonus=1,
                 ),
                 Weapon(name="Close Combat Weapon", attacks=3, skill=4, strength=5, ap=0, damage=1),
             ],
@@ -702,13 +871,30 @@ if __name__ == "__main__":
             weapons=[
                 Weapon(
                     name="Shuriken Cannon",
-                    attacks=3,
+                    attacks=6,
                     skill=3,
                     strength=6,
                     ap=-1,
                     damage=2,
                     lethal_hits=True,
                 ),
+                # Weapon(
+                #     name="Scatter Laser",
+                #     attacks=12,
+                #     skill=3,
+                #     strength=5,
+                #     ap=0,
+                #     damage=1,
+                #     sustained_hits=True
+                # ),
+                # Weapon(
+                #     name="Starcannon",
+                #     attacks=4,
+                #     skill=3,
+                #     strength=8,
+                #     ap=-3,
+                #     damage=2,
+                # ),
                 Weapon(
                     name="Titanic Ghostglaive - Strike",
                     attacks=5,
@@ -737,21 +923,70 @@ if __name__ == "__main__":
             weapons=[
                 Weapon(
                     name="Flamer",
-                    attacks=Dice(1, 6),
+                    attacks=Dice(2, 1, 6),
                     skill=0,
                     strength=4,
                     ap=0,
                     damage=1,
                     torrent=True,
+                    hit_bonus=1,
                 ),
+                # Weapon(
+                #     name="Shuriken Catapult",
+                #     attacks=4,
+                #     skill=0,
+                #     strength=4,
+                #     ap=-1,
+                #     damage=1,
+                #     hit_bonus=1,
+                # ),
+                # Weapon(
+                #     name="Scatter Laser",
+                #     attacks=12,
+                #     skill=4,
+                #     strength=5,
+                #     ap=0,
+                #     damage=1,
+                #     hit_bonus=1,
+                #     sustained_hits=True
+                # ),
                 Weapon(
-                    name="Bright Lance",
-                    attacks=1,
+                    name="Shuriken Cannon",
+                    attacks=6,
                     skill=4,
-                    strength=12,
-                    ap=-3,
-                    damage=Dice(1, 6, 2),
+                    strength=6,
+                    ap=-1,
+                    damage=2,
+                    lethal_hits=True,
+                    hit_bonus=1,
                 ),
+                # Weapon(
+                #     name="Starcannon",
+                #     attacks=4,
+                #     skill=4,
+                #     strength=8,
+                #     ap=-3,
+                #     damage=2,
+                #     hit_bonus=1
+                # ),
+                # Weapon(
+                #     name="Bright Lance",
+                #     attacks=2,
+                #     skill=4,
+                #     strength=12,
+                #     ap=-3,
+                #     damage=Dice(1, 6, 2),
+                #     hit_bonus=1,
+                # ),
+                # Weapon(
+                #     name="Starshot",
+                #     attacks=2,
+                #     skill=4,
+                #     strength=10,
+                #     ap=-2,
+                #     damage=Dice(1, 6),
+                #     hit_bonus=1,
+                # ),
                 Weapon(
                     name="Ghostglaive Strike",
                     attacks=4,
@@ -759,14 +994,16 @@ if __name__ == "__main__":
                     strength=10,
                     ap=-3,
                     damage=Dice(1, 6, 1),
+                    hit_bonus=1,
                 ),
                 Weapon(name="Ghostglaive Sweep", attacks=8, skill=4, strength=7, ap=-2, damage=2),
             ],
         ),
     ]
 
-    plot_weapon_vs_unit_heatmap(alf_units, tom_units, simulate)
-    plot_weapon_vs_unit_heatmap(tom_units, alf_units, simulate)
+    plot_interactive_heatmap_dashboard(alf_units, tom_units, simulate)
 
-    plot_weapon_vs_unit_kills_heatmap(alf_units, tom_units, simulate)
-    plot_weapon_vs_unit_kills_heatmap(tom_units, alf_units, simulate)
+    # plot_weapon_vs_unit_heatmap(alf_units, tom_units, simulate)
+    # plot_weapon_vs_unit_heatmap(tom_units, alf_units, simulate)
+    # plot_weapon_vs_unit_kills_heatmap(alf_units, tom_units, simulate)
+    # plot_weapon_vs_unit_kills_heatmap(tom_units, alf_units, simulate)
