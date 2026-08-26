@@ -1,0 +1,4 @@
+[formatter.python]
+command = "uvx"
+options = ["black"]
+includes = ["*.py"]
