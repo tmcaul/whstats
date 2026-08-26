@@ -195,38 +195,111 @@ def calculate_remaining_models(unit: Unit, damage_matrix: np.ndarray) -> np.ndar
 def plot_weapon_vs_unit_heatmap(
     attacker_units: list[Unit], target_units: list[Unit], simulate_fn, trials=2000
 ):
-    """Generates a heatmap comparing mean damage of all weapons across all target units."""
-    matrix_data = []
+    """Generates a heatmap comparing damage percentiles of all weapons across all target units."""
+    median_data = []
+    annot_data = []
 
     for attacker in attacker_units:
         for weapon in attacker.weapons:
             w_name = f"{attacker.name}: {weapon.name}"
-            row = {"Weapon": w_name}
+            med_row = {"Weapon": w_name}
+            ann_row = {"Weapon": w_name}
+
             for target in target_units:
                 damage_matrix = simulate_fn(
                     target=target, weapon=weapon, attacker=attacker, trials=trials
                 )
-                row[target.name] = np.median(damage_matrix.sum(axis=1))
-            matrix_data.append(row)
 
-    df_heatmap = pd.DataFrame(matrix_data).set_index("Weapon")
+                # Calculate totals for each trial
+                totals = damage_matrix.sum(axis=1)
 
-    plt.figure(figsize=(12, max(6, len(df_heatmap) * 0.35)))
+                # Calculate percentiles
+                p25, p50, p75 = np.percentile(totals, [25, 50, 75])
+
+                # Store median for the color scale
+                med_row[target.name] = p50
+
+                # Store the formatted string for the text annotation
+                ann_row[target.name] = f"{p25:.0f} - {p50:.0f} - {p75:.0f}"
+
+            median_data.append(med_row)
+            annot_data.append(ann_row)
+
+    df_median = pd.DataFrame(median_data).set_index("Weapon")
+    df_annot = pd.DataFrame(annot_data).set_index("Weapon")
+
+    plt.figure(figsize=(14, max(8, len(df_median) * 0.3)))
 
     sns.heatmap(
-        df_heatmap,
-        annot=True,
-        fmt=".1f",
+        df_median,
+        annot=df_annot,
+        fmt="",
         cmap="YlOrRd",
         linewidths=0.5,
-        cbar_kws={"label": "Mean Expected Damage"},
+        cbar_kws={"label": "Median Damage"},
         vmin=0,
         vmax=25,
     )
 
     plt.title(
-        "Expected Weapon Damage Across Target Units",
-        fontsize=14,
+        "Weapon Damage",
+        fontsize=12,
+        fontweight="bold",
+    )
+
+    plt.ylabel("Weapon")
+    plt.xlabel("Target Unit")
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_weapon_vs_unit_kills_heatmap(
+    attacker_units: list[Unit], target_units: list[Unit], simulate_fn, trials=2000
+):
+    """Generates a heatmap comparing models killed percentiles of all weapons across all target units."""
+    median_data = []
+    annot_data = []
+
+    for attacker in attacker_units:
+        for weapon in attacker.weapons:
+            w_name = f"{attacker.name}: {weapon.name}"
+            med_row = {"Weapon": w_name}
+            ann_row = {"Weapon": w_name}
+
+            for target in target_units:
+                damage_matrix = simulate_fn(
+                    target=target, weapon=weapon, attacker=attacker, trials=trials
+                )
+
+                remaining_models = calculate_remaining_models(target, damage_matrix)
+                killed_models = target.models - remaining_models
+                p25, p50, p75 = np.percentile(killed_models, [25, 50, 75])
+
+                # 4. Store data
+                med_row[target.name] = p50
+                ann_row[target.name] = f"{p25:.0f} - {p50:.0f} - {p75:.0f}"
+
+            median_data.append(med_row)
+            annot_data.append(ann_row)
+
+    df_median = pd.DataFrame(median_data).set_index("Weapon")
+    df_annot = pd.DataFrame(annot_data).set_index("Weapon")
+
+    plt.figure(figsize=(14, max(8, len(df_median) * 0.3)))
+
+    sns.heatmap(
+        df_median,
+        annot=df_annot,
+        fmt="",
+        cmap="YlOrRd",
+        linewidths=0.5,
+        cbar_kws={"label": "Median Models Killed"},
+        vmin=0,
+    )
+
+    plt.title(
+        "Models Killed",
+        fontsize=12,
         fontweight="bold",
     )
     plt.ylabel("Weapon")
@@ -694,3 +767,6 @@ if __name__ == "__main__":
 
     plot_weapon_vs_unit_heatmap(alf_units, tom_units, simulate)
     plot_weapon_vs_unit_heatmap(tom_units, alf_units, simulate)
+
+    plot_weapon_vs_unit_kills_heatmap(alf_units, tom_units, simulate)
+    plot_weapon_vs_unit_kills_heatmap(tom_units, alf_units, simulate)
