@@ -15,6 +15,9 @@ dependencies = [
     "seaborn>=0.13.2",
 ]
 
+[tool.pyright]
+pythonVersion = "3.15"
+
 [project.scripts]
 whstats = "whstats:main"
 

@@ -1,17 +1,8 @@
 import numpy as np
 import dataclasses
 import seaborn as sns
+import pandas as pd
 import matplotlib.pyplot as plt
-
-
-@dataclasses.dataclass(frozen=True)
-class Unit:
-    toughness: int
-    saving_throw: int
-    wounds: int
-    models: int
-    invuln: int | None = None
-    fnp: int | None = None  # Feel No Pain threshold (e.g., 5 for a 5+ FNP)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -36,7 +27,8 @@ class Dice:
 
 @dataclasses.dataclass(frozen=True)
 class Weapon:
-    attacks: int | Dice
+    name: str
+    attacks: int | Dice  # Attacks PER MODEL
     skill: int
     strength: int
     ap: int
@@ -50,6 +42,7 @@ class Weapon:
     reroll_all_hits: bool = False
     reroll_wound_ones: bool = False
     reroll_all_wounds: bool = False
+    models_equipped: int | None = None  # If None, assumes all models in the unit are equipped
 
     def __post_init__(self):
         assert self.ap <= 0, "expect ap <= 0"
@@ -57,32 +50,52 @@ class Weapon:
         assert -1 <= self.hit_bonus <= 1, "expect hit bonus -1 -> 1"
 
 
-def _to_wound(unit: Unit, weapon: Weapon) -> int:
-    if weapon.strength >= 2 * unit.toughness:
+@dataclasses.dataclass(frozen=True)
+class Unit:
+    name: str
+    toughness: int
+    saving_throw: int
+    wounds: int
+    models: int
+    weapons: list[Weapon] = dataclasses.field(default_factory=list)
+    invuln: int | None = None
+    fnp: int | None = None  # Feel No Pain threshold (e.g., 5 for a 5+ FNP)
+
+
+def _to_wound(target: Unit, weapon: Weapon) -> int:
+    if weapon.strength >= 2 * target.toughness:
         return 2
-    if weapon.strength > unit.toughness:
+    if weapon.strength > target.toughness:
         return 3
-    if weapon.strength == unit.toughness:
+    if weapon.strength == target.toughness:
         return 4
-    if weapon.strength * 2 <= unit.toughness:
+    if weapon.strength * 2 <= target.toughness:
         return 6
     return 5
 
 
-def _to_save(unit: Unit, weapon: Weapon) -> int:
-    baseline = unit.saving_throw - weapon.ap
-    if unit.invuln is None:
+def _to_save(target: Unit, weapon: Weapon) -> int:
+    baseline = target.saving_throw - weapon.ap
+    if target.invuln is None:
         return baseline
-    return min(baseline, unit.invuln)
+    return min(baseline, target.invuln)
 
 
-def simulate(unit: Unit, weapon: Weapon, trials: int = 1000) -> np.ndarray:
+def simulate(target: Unit, weapon: Weapon, attacker: Unit, trials: int = 1000) -> np.ndarray:
 
-    # Determine attacks per trial
+    equipped_count = weapon.models_equipped if weapon.models_equipped is not None else attacker.models
+
+    # Determine attacks per trial by scaling per-model attacks by equipped_count
     if isinstance(weapon.attacks, int):
-        attacks_per_trial = np.full(trials, weapon.attacks)
+        attacks_per_trial = np.full(trials, weapon.attacks * equipped_count)
     else:
-        attacks_per_trial = weapon.attacks.roll_trials(trials)
+        # Scale the dice pool by the number of models equipped
+        scaled_dice = Dice(
+            weapon.attacks.n * equipped_count, 
+            weapon.attacks.sides, 
+            weapon.attacks.plus * equipped_count
+        )
+        attacks_per_trial = scaled_dice.roll_trials(trials)
 
     max_attacks = attacks_per_trial.max()
 
@@ -120,7 +133,7 @@ def simulate(unit: Unit, weapon: Weapon, trials: int = 1000) -> np.ndarray:
     else:
         max_attacks_sim = max_attacks
 
-    wound_thresh = _to_wound(unit, weapon)
+    wound_thresh = _to_wound(target, weapon)
     unmodified_wound_rolls = np.random.randint(low=1, high=7, size=(trials, max_attacks_sim))
 
     if weapon.reroll_wound_ones:
@@ -139,7 +152,7 @@ def simulate(unit: Unit, weapon: Weapon, trials: int = 1000) -> np.ndarray:
     if weapon.lethal_hits:
         wounds_mask[critical_hits] = True
 
-    save_thresh = _to_save(unit, weapon)
+    save_thresh = _to_save(target, weapon)
     save_rolls = np.random.randint(low=1, high=7, size=(trials, max_attacks_sim))
     unsaved_mask = wounds_mask & (save_rolls < save_thresh)
 
@@ -149,8 +162,8 @@ def simulate(unit: Unit, weapon: Weapon, trials: int = 1000) -> np.ndarray:
         damage_rolls = weapon.damage.roll_matrix((trials, max_attacks_sim))
         damage_matrix = np.where(unsaved_mask, damage_rolls, 0)
 
-    if unit.fnp is not None:
-        p_fail_fnp = (unit.fnp - 1) / 6.0
+    if target.fnp is not None:
+        p_fail_fnp = (target.fnp - 1) / 6.0
         damage_matrix = np.random.binomial(damage_matrix, p_fail_fnp)
 
     return damage_matrix
@@ -161,7 +174,6 @@ def calculate_remaining_models(unit: Unit, damage_matrix: np.ndarray) -> np.ndar
     Calculates the number of models left in the unit across all trials,
     respecting the 'damage does not spill over' rule.
     """
-
     trials, max_attacks = damage_matrix.shape
     current_wounds = np.full(trials, unit.wounds)
     dead_models = np.zeros(trials, dtype=int)
@@ -180,79 +192,135 @@ def calculate_remaining_models(unit: Unit, damage_matrix: np.ndarray) -> np.ndar
 
 if __name__ == "__main__":
 
-    my_weapons = {
-        "Wraithcannon": Weapon(
-            attacks=5,
-            skill=4,
-            strength=14,
-            ap=-4,
-            damage=Dice(1, 6, 1),
-            hit_bonus=1,
-            wound_bonus=1,
-        ),
-        "D-Scythe": Weapon(
-            attacks=Dice(5, 6),
-            skill=0,
-            strength=7,
-            ap=-3,
-            damage=1,
-            wound_bonus=1,
-            torrent=True,
-        ),
-        "Wraithblades": Weapon(
-            attacks=25,
-            skill=4,
-            strength=5,
-            ap=-2,
-            damage=2,
-            hit_bonus=1,
-            wound_bonus=1,
-        ),
-        "Windriders": Weapon(attacks=9, skill=3, strength=6, ap=-1, damage=2, lethal_hits=True),
-        "Guardian Shuriken Catapult": Weapon(
-            attacks=20,
-            skill=3,
-            strength=4,
-            ap=-1,
-            damage=1,
-            wound_bonus=1,
-        ),
-    }
+    alf_units = [
+        Unit(name="Lucius the Eternal", toughness=5, saving_throw=2, wounds=6, models=1, invuln=4, weapons=[
+            Weapon(name="Blade of the Laer", attacks=6, skill=2, strength=8, ap=-3, damage=3),
+            Weapon(name="Lash of Torment", attacks=10, skill=2, strength=4, ap=-1, damage=1)
+        ]),
+        Unit(name="Daemon Prince of Slaanesh with Wings", toughness=9, saving_throw=2, wounds=10, models=1, invuln=4, weapons=[
+            Weapon(name="Infernal cannon", attacks=3, skill=2, strength=5, ap=-1, damage=2),
+            Weapon(name="Hellforged weapons - strike", attacks=6, skill=2, strength=8, ap=-2, damage=3),
+            Weapon(name="Hellforged weapons - sweep", attacks=14, skill=2, strength=6, ap=0, damage=1)
+        ]),
+        Unit(name="Lord Exultant", toughness=4, saving_throw=3, wounds=5, models=1, invuln=4, weapons=[
+            Weapon(name="Bolt pistol", attacks=1, skill=2, strength=4, ap=0, damage=1, lethal_hits=True),
+            Weapon(name="Phoenix power spear", attacks=5, skill=2, strength=7, ap=-2, damage=2, lethal_hits=True),
+            Weapon(name="Rapture lash", attacks=4, skill=2, strength=4, ap=-1, damage=1, lethal_hits=True),
+            Weapon(name="Close combat weapon", attacks=6, skill=2, strength=4, ap=0, damage=1, lethal_hits=True)
+        ]),
+        Unit(name="Lord Exultant (Euphoric Crown)", toughness=4, saving_throw=3, wounds=5, models=1, invuln=4, weapons=[
+            Weapon(name="Phoenix power spear", attacks=5, skill=2, strength=8, ap=-2, damage=2, lethal_hits=True),
+            Weapon(name="Rapture lash", attacks=4, skill=2, strength=5, ap=-1, damage=1, lethal_hits=True),
+            Weapon(name="Close combat weapon", attacks=6, skill=2, strength=5, ap=0, damage=1, lethal_hits=True)
+        ]),
+        Unit(name="Lord Kakophonist", toughness=5, saving_throw=2, wounds=6, models=1, invuln=4, weapons=[
+            Weapon(name="Screamer pistol", attacks=3, skill=2, strength=5, ap=-1, damage=2),
+            Weapon(name="Close combat weapon", attacks=6, skill=2, strength=4, ap=0, damage=1)
+        ]),
+        Unit(name="Infractors", toughness=4, saving_throw=3, wounds=2, models=5, invuln=None, weapons=[
+            Weapon(name="Bolt pistol", attacks=1, skill=3, strength=4, ap=0, damage=1, lethal_hits=True),
+            Weapon(name="Plasma pistol - standard", attacks=1, skill=3, strength=7, ap=-2, damage=1, lethal_hits=True),
+            Weapon(name="Plasma pistol - supercharge", attacks=1, skill=3, strength=8, ap=-3, damage=2, lethal_hits=True),
+            Weapon(name="Rapture lash", attacks=6, skill=3, strength=4, ap=-1, damage=1, lethal_hits=True),
+            Weapon(name="Duelling sabre", attacks=4, skill=3, strength=4, ap=-1, damage=1, lethal_hits=True)
+        ]),
+        Unit(name="Tormentors", toughness=4, saving_throw=3, wounds=2, models=5, invuln=None, weapons=[
+            Weapon(name="Boltgun", attacks=2, skill=3, strength=4, ap=0, damage=1),
+            Weapon(name="Plasma pistol - standard", attacks=1, skill=3, strength=7, ap=-2, damage=1),
+            Weapon(name="Plasma pistol - supercharge", attacks=1, skill=3, strength=8, ap=-3, damage=2),
+            Weapon(name="Meltagun", attacks=1, skill=3, strength=9, ap=-4, damage=Dice(1, 6)),
+            Weapon(name="Plasma gun - standard", attacks=1, skill=3, strength=7, ap=-2, damage=1),
+            Weapon(name="Plasma gun - supercharge", attacks=1, skill=3, strength=8, ap=-3, damage=2),
+            Weapon(name="Power sword", attacks=4, skill=3, strength=5, ap=-2, damage=1),
+            Weapon(name="Close combat weapon", attacks=3, skill=3, strength=4, ap=0, damage=1)
+        ]),
+        Unit(name="Flawless Blades", toughness=5, saving_throw=3, wounds=3, models=6, invuln=5, weapons=[
+            Weapon(name="Bolt pistol", attacks=1, skill=3, strength=4, ap=0, damage=1),
+            Weapon(name="Blissblade", attacks=4, skill=2, strength=6, ap=-3, damage=2)
+        ]),
+        Unit(name="Noise Marines", toughness=5, saving_throw=3, wounds=2, models=6, invuln=None, weapons=[
+            Weapon(name="Sonic blaster", attacks=3, skill=3, strength=5, ap=-1, damage=2),
+            Weapon(name="Blastmaster - varied frequency", attacks=6, skill=3, strength=6, ap=-2, damage=1),
+            Weapon(name="Blastmaster - single frequency", attacks=3, skill=3, strength=10, ap=-2, damage=3)
+        ])
+    ]
 
-    alf_units = {
-        "": Unit(
-            toughness=5,
-            saving_throw=3,
-            wounds=3,
-            models=6,
-            invuln=5,
+    tom_units = [
+        Unit(name="Eldrad Ulthran", toughness=4, saving_throw=6, wounds=5, models=1, invuln=4, weapons=[
+            Weapon(name="Mind War", attacks=1, skill=2, strength=5, ap=-2, damage=Dice(1, 6)),
+            Weapon(name="Shuriken Pistol", attacks=1, skill=2, strength=4, ap=-1, damage=1),
+            Weapon(name="Staff of Ulthamar and witchblade", attacks=3, skill=2, strength=5, ap=-1, damage=2)
+        ]),
+        Unit(name="Spiritseer", toughness=3, saving_throw=6, wounds=3, models=1, invuln=4, weapons=[
+            Weapon(name="Witch Staff", attacks=2, skill=2, strength=3, ap=0, damage=Dice(1, 3))
+        ]),
+        Unit(name="Guardian Defenders", toughness=3, saving_throw=4, wounds=1, models=11, invuln=None, weapons=[
+            Weapon(name="Shuriken Catapult", attacks=2, skill=3, strength=4, ap=-1, damage=1, models_equipped=10),
+            Weapon(name="Bright Lance", attacks=1, skill=3, strength=12, ap=-3, damage=Dice(1, 6, 2), models_equipped=1),
+            Weapon(name="Close Combat Weapon", attacks=1, skill=3, strength=3, ap=0, damage=1) # Applies to all 11
+        ]),
+        Unit(name="Wraithblades", toughness=6, saving_throw=2, wounds=3, models=5, invuln=4, weapons=[
+            Weapon(name="Ghostaxe", attacks=3, skill=4, strength=7, ap=-2, damage=2)
+        ]),
+        Unit(name="Wraithguard", toughness=6, saving_throw=2, wounds=3, models=5, invuln=None, weapons=[
+            Weapon(name="D-Scythe", attacks=Dice(1, 6), skill=0, strength=7, ap=-3, damage=1, torrent=True),
+            Weapon(name="Wraithcannon", attacks=1, skill=4, strength=14, ap=-4, damage=Dice(1, 6, 1)),
+            Weapon(name="Close Combat Weapon", attacks=3, skill=4, strength=5, ap=0, damage=1)
+        ]),
+        Unit(name="Windriders", toughness=4, saving_throw=4, wounds=2, models=3, invuln=6, weapons=[
+            Weapon(name="Twin shuriken catapult", attacks=2, skill=3, strength=4, ap=-1, damage=1, reroll_wound_ones=True),
+            Weapon(name="Close combat weapon", attacks=3, skill=3, strength=3, ap=0, damage=1)
+        ]),
+        Unit(name="Wraithknight with Ghostglaive", toughness=12, saving_throw=2, wounds=18, models=1, invuln=4, weapons=[
+            Weapon(name="Shuriken Cannon", attacks=3, skill=3, strength=6, ap=-1, damage=2, lethal_hits=True),
+            Weapon(name="Titanic Ghostglaive - Strike", attacks=5, skill=3, strength=16, ap=-3, damage=6),
+            Weapon(name="Titanic Ghostglaive - Sweep", attacks=15, skill=3, strength=8, ap=-2, damage=2)
+        ]),
+        Unit(name="Wraithlord", toughness=10, saving_throw=2, wounds=10, models=1, invuln=None, weapons=[
+            Weapon(name="Flamer", attacks=Dice(1, 6), skill=0, strength=4, ap=0, damage=1, torrent=True),
+            Weapon(name="Bright Lance", attacks=1, skill=4, strength=12, ap=-3, damage=Dice(1, 6, 2)),
+            Weapon(name="Ghostglaive Strike", attacks=4, skill=4, strength=10, ap=-3, damage=Dice(1, 6, 1)),
+            Weapon(name="Ghostglaive Sweep", attacks=8, skill=4, strength=7, ap=-2, damage=2)
+        ])
+    ]
+
+    def plot_weapon_vs_unit_heatmap(attacker_units: list[Unit], target_units: list[Unit], simulate_fn, trials=2000):
+        """Generates a heatmap comparing mean damage of all weapons across all target units."""
+        matrix_data = []
+
+        for attacker in attacker_units:
+            for weapon in attacker.weapons:
+                w_name = f"{attacker.name}: {weapon.name}"
+                row = {"Weapon": w_name}
+                for target in target_units:
+                    damage_matrix = simulate_fn(target=target, weapon=weapon, attacker=attacker, trials=trials)
+                    row[target.name] = np.median(damage_matrix.sum(axis=1))
+                matrix_data.append(row)
+
+        df_heatmap = pd.DataFrame(matrix_data).set_index("Weapon")
+
+        plt.figure(figsize=(12, max(6, len(df_heatmap) * 0.35)))
+
+        sns.heatmap(
+            df_heatmap,
+            annot=True,
+            fmt=".1f",
+            cmap="YlOrRd",
+            linewidths=0.5,
+            cbar_kws={"label": "Mean Expected Damage"},
+            vmin=0,
+            vmax=25,
         )
-    }
 
-    n_weapons = len(weapons)
-    fig, axes = plt.subplots(n_weapons, 2, figsize=(8, 2 * n_weapons))
-
-    for i, (name, weapon) in enumerate(weapons.items()):
-        damage_matrix = simulate(u, weapon, trials=5000)
-        flattened_damage = damage_matrix.sum(axis=1)
-        remaining_models = calculate_remaining_models(u, damage_matrix)
-
-        # Plot Damage Distribution (Left Column)
-        sns.histplot(flattened_damage, ax=axes[i, 0], kde=True, stat="probability", discrete=True)
-        axes[i, 0].set_xlabel("Total Damage")
-        axes[i, 0].set_title(f"{name} - Damage Distribution")
-
-        # Plot Surviving Models (Right Column)
-        sns.histplot(
-            remaining_models,
-            ax=axes[i, 1],
-            stat="probability",
-            discrete=True,
-            color="coral",
+        plt.title(
+            "Expected Weapon Damage Across Target Units",
+            fontsize=14,
+            fontweight="bold",
         )
-        axes[i, 1].set_xlabel("Models Remaining")
-        axes[i, 1].set_title(f"{name} - Surviving Models")
-        axes[i, 1].set_xticks(range(u.models + 1))
+        plt.ylabel("Weapon")
+        plt.xlabel("Target Unit")
+        plt.tight_layout()
+        plt.show()
 
-    plt.tight_layout()
-    plt.show()
+    plot_weapon_vs_unit_heatmap(alf_units, tom_units, simulate)
+    plot_weapon_vs_unit_heatmap(tom_units, alf_units, simulate)
