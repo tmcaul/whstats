@@ -502,10 +502,15 @@ if __name__ == "__main__":
     if "def_army_uvu" not in st.session_state:
         st.session_state.def_army_uvu = default_defender
 
-    st.sidebar.link_button(
+    sidebar_col1, sidebar_col2 = st.sidebar.columns(2)
+    sidebar_col1.link_button(
         "Army Data ↗",
         "https://docs.google.com/spreadsheets/d/1uqMFwcVcPISlDX2mWYYnykM0D3Sv8T1eJZzrZsoheWg/edit?gid=0#gid=0",
+        width="stretch",
     )
+    if sidebar_col2.button("🔄 Refresh Army Data", width="stretch"):
+        load_armies.cache_clear()
+        st.rerun()
 
     pg = st.navigation([page_summary, page_uvu])
     pg.run()
