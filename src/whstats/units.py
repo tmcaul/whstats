@@ -1,12 +1,14 @@
 import dataclasses
 import re
-from pathlib import Path
+import functools
 
 import pandas as pd
 
 from whstats.sim import Dice, Unit, Weapon
 
-DATA_DIR = Path(__file__).parent / "data"
+UNITS_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQgZm_bSjPn7SCHcXr-4ZE8U8AQBmCdEP1RiBw0HPDPJlItxYlPHPmSejUodL1ClozkB2AsvyiG8VBn/pub?gid=1228841000&single=true&output=csv"
+WEAPONS_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQgZm_bSjPn7SCHcXr-4ZE8U8AQBmCdEP1RiBw0HPDPJlItxYlPHPmSejUodL1ClozkB2AsvyiG8VBn/pub?gid=1209466588&single=true&output=csv"
+LOADOUTS_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQgZm_bSjPn7SCHcXr-4ZE8U8AQBmCdEP1RiBw0HPDPJlItxYlPHPmSejUodL1ClozkB2AsvyiG8VBn/pub?gid=550785005&single=true&output=csv"
 
 _DICE_RE = re.compile(r"^(\d+)d(\d+)(?:\+(\d+))?$")
 
@@ -31,10 +33,11 @@ def _parse_bool(raw):
     return str(raw).strip().lower() == "true"
 
 
-def _load_armies() -> dict[str, list[Unit]]:
-    units_df = pd.read_csv(DATA_DIR / "units.csv")
-    weapons_df = pd.read_csv(DATA_DIR / "weapons.csv").set_index("weapon_name")
-    unit_weapons_df = pd.read_csv(DATA_DIR / "unit_weapons.csv")
+@functools.lru_cache(maxsize=1)
+def load_armies() -> dict[str, list[Unit]]:
+    units_df = pd.read_csv(UNITS_URL)
+    weapons_df = pd.read_csv(WEAPONS_URL).set_index("weapon_name")
+    unit_weapons_df = pd.read_csv(LOADOUTS_URL)
 
     weapon_templates: dict[str, Weapon] = {}
     for weapon_name, row in weapons_df.iterrows():
@@ -85,6 +88,3 @@ def _load_armies() -> dict[str, list[Unit]]:
         armies.setdefault(army, []).append(unit)
 
     return armies
-
-
-ARMIES = _load_armies()
