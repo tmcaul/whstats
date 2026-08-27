@@ -33,16 +33,24 @@ def _parse_bool(raw):
     return str(raw).strip().lower() == "true"
 
 
+def _weapon_key(unit) -> str | None:
+    """None means the weapon is generic (shared across units), not scoped to one unit."""
+    if pd.isna(unit) or str(unit).strip() == "":
+        return None
+    return unit
+
+
 @functools.lru_cache(maxsize=1)
 def load_armies() -> dict[str, list[Unit]]:
-    units_df = pd.read_csv(UNITS_URL)
-    weapons_df = pd.read_csv(WEAPONS_URL).set_index("weapon_name")
-    unit_weapons_df = pd.read_csv(LOADOUTS_URL)
+    units_df = pd.read_csv(UNITS_URL).set_index("unit")
+    weapons_df = pd.read_csv(WEAPONS_URL)
+    loadouts_df = pd.read_csv(LOADOUTS_URL)
 
-    weapon_templates: dict[str, Weapon] = {}
-    for weapon_name, row in weapons_df.iterrows():
-        weapon_templates[weapon_name] = Weapon(
-            name=weapon_name,
+    weapon_templates: dict[tuple[str | None, str], Weapon] = {}
+    for _, row in weapons_df.iterrows():
+        weapon = row["weapon"]
+        weapon_templates[(_weapon_key(row["unit"]), weapon)] = Weapon(
+            name=weapon,
             attacks=_parse_value(row["attacks"]),
             skill=int(row["skill"]),
             strength=int(row["strength"]),
@@ -61,21 +69,21 @@ def load_armies() -> dict[str, list[Unit]]:
         )
 
     armies: dict[str, list[Unit]] = {}
-    for _, urow in units_df.iterrows():
-        army = urow["army"]
-        unit_name = urow["unit_name"]
+    for display_name, loadout_rows in loadouts_df.groupby("display_name"):
+        army = loadout_rows["army"].iloc[0]
+        unit_name = loadout_rows["unit"].iloc[0]
+        urow = units_df.loc[unit_name]
 
         weapons = []
-        for _, wrow in unit_weapons_df[
-            (unit_weapons_df["army"] == army) & (unit_weapons_df["unit_name"] == unit_name)
-        ].iterrows():
-            template = weapon_templates[wrow["weapon_name"]]
+        for _, wrow in loadout_rows.iterrows():
+            weapon = wrow["weapon"]
+            template = weapon_templates.get((unit_name, weapon)) or weapon_templates[(None, weapon)]
             weapons.append(
                 dataclasses.replace(template, models_equipped=_parse_optional_int(wrow["count"]))
             )
 
         unit = Unit(
-            name=unit_name,
+            name=display_name,
             toughness=int(urow["toughness"]),
             saving_throw=int(urow["saving_throw"]),
             wounds=int(urow["wounds"]),
