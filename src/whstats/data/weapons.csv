@@ -1,0 +1,56 @@
+weapon_name,phase,attacks,skill,strength,ap,damage,torrent,wound_bonus,hit_bonus,sustained_hits,lethal_hits,reroll_hit_ones,reroll_all_hits,reroll_wound_ones,reroll_all_wounds
+Blade of the Laer,melee,6,2,8,-3,3,False,0,0,False,False,False,False,False,False
+Blastmaster - single frequency,ranged,3,3,10,-2,3,False,0,0,False,False,False,False,False,False
+Blastmaster - varied frequency,ranged,6,3,6,-2,1,False,0,0,False,False,False,False,False,False
+Blissblade,melee,4,2,6,-3,2,False,0,0,False,False,False,False,False,False
+Bolt pistol [Flawless Blades],ranged,1,3,4,0,1,False,0,0,False,False,False,False,False,False
+Bolt pistol [Infractors],ranged,1,3,4,0,1,False,0,0,False,True,False,False,False,False
+Bolt pistol [Lord Exultant],ranged,1,2,4,0,1,False,0,0,False,True,False,False,False,False
+Boltgun,ranged,2,3,4,0,1,False,0,0,False,False,False,False,False,False
+Bright Lance,ranged,1,3,12,-3,1d6+2,False,0,0,False,False,False,False,False,False
+Close Combat Weapon [Guardian Defenders],melee,1,3,3,0,1,False,0,0,False,False,False,False,False,False
+Close Combat Weapon [Lord Exultant (Euphoric Crown)],melee,6,2,5,0,1,False,0,0,False,True,False,False,False,False
+Close Combat Weapon [Lord Exultant],melee,6,2,4,0,1,False,0,0,False,True,False,False,False,False
+Close Combat Weapon [Lord Kakophonist],melee,6,2,4,0,1,False,0,0,False,False,False,False,False,False
+Close Combat Weapon [Tormentors],melee,3,3,4,0,1,False,0,0,False,False,False,False,False,False
+Close Combat Weapon [Windriders],melee,3,3,3,0,1,False,0,0,False,False,False,False,False,False
+Close Combat Weapon [Wraithguard],melee,3,4,5,0,1,False,0,0,False,False,False,False,False,False
+D-Scythe,ranged,1d6,0,7,-3,1,True,0,0,False,False,False,False,False,False
+Duelling sabre,melee,4,3,4,-1,1,False,0,0,False,True,False,False,False,False
+Flamer [Storm Guardians],ranged,1d6,0,4,0,1,False,0,0,False,False,False,False,False,False
+Flamer [Wraithlord],ranged,2d1+6,0,4,0,1,True,0,0,False,False,False,False,False,False
+Fusion gun,ranged,1,3,4,-1,1,False,0,0,False,False,False,False,False,False
+Ghostaxe,melee,3,4,7,-2,2,False,0,0,False,False,False,False,False,False
+Ghostglaive Strike,melee,4,4,10,-3,1d6+1,False,0,0,False,False,False,False,False,False
+Ghostglaive Sweep,melee,8,4,7,-2,2,False,0,0,False,False,False,False,False,False
+Hellforged weapons - strike,melee,6,2,8,-2,3,False,0,0,False,False,False,False,False,False
+Hellforged weapons - sweep,melee,14,2,6,0,1,False,0,0,False,False,False,False,False,False
+Infernal cannon,ranged,3,2,5,-1,2,False,0,0,False,False,False,False,False,False
+Lash of Torment,ranged,10,2,4,-1,1,False,0,0,False,False,False,False,False,False
+Meltagun,ranged,1,3,9,-4,1d6,False,0,0,False,False,False,False,False,False
+Mind War,ranged,1,2,5,-2,1d6,False,0,0,False,False,False,False,False,False
+Phoenix power spear [Lord Exultant (Euphoric Crown)],melee,5,2,8,-2,2,False,0,0,False,True,False,False,False,False
+Phoenix power spear [Lord Exultant],melee,5,2,7,-2,2,False,0,0,False,True,False,False,False,False
+Plasma gun - standard,ranged,1,3,7,-2,1,False,0,0,False,False,False,False,False,False
+Plasma gun - supercharge,ranged,1,3,8,-3,2,False,0,0,False,False,False,False,False,False
+Plasma pistol - standard [Infractors],ranged,1,3,7,-2,1,False,0,0,False,True,False,False,False,False
+Plasma pistol - standard [Tormentors],ranged,1,3,7,-2,1,False,0,0,False,False,False,False,False,False
+Plasma pistol - supercharge [Infractors],ranged,1,3,8,-3,2,False,0,0,False,True,False,False,False,False
+Plasma pistol - supercharge [Tormentors],ranged,1,3,8,-3,2,False,0,0,False,False,False,False,False,False
+Power sword [Storm Guardians],melee,2,3,4,-2,1,False,0,0,False,False,False,False,False,False
+Power sword [Tormentors],melee,4,3,5,-2,1,False,0,0,False,False,False,False,False,False
+Rapture lash [Infractors],melee,6,3,4,-1,1,False,0,0,False,True,False,False,False,False
+Rapture lash [Lord Exultant (Euphoric Crown)],melee,4,2,5,-1,1,False,0,0,False,True,False,False,False,False
+Rapture lash [Lord Exultant],melee,4,2,4,-1,1,False,0,0,False,True,False,False,False,False
+Screamer pistol,ranged,3,2,5,-1,2,False,0,0,False,False,False,False,False,False
+Shuriken Cannon [Wraithknight with Ghostglaive],ranged,6,3,6,-1,2,False,0,0,False,True,False,False,False,False
+Shuriken Cannon [Wraithlord],ranged,6,4,6,-1,2,False,0,0,False,True,False,False,False,False
+Shuriken Catapult,ranged,2,3,4,-1,1,False,0,0,False,False,False,False,False,False
+Shuriken Pistol,ranged,1,2,4,-1,1,False,0,0,False,False,False,False,False,False
+Sonic blaster,ranged,3,3,5,-1,2,False,0,0,False,False,False,False,False,False
+Staff of Ulthamar and witchblade,melee,3,2,5,-1,2,False,0,0,False,False,False,False,False,False
+Titanic Ghostglaive - Strike,melee,5,3,16,-3,6,False,0,0,False,False,False,False,False,False
+Titanic Ghostglaive - Sweep,melee,15,3,8,-2,2,False,0,0,False,False,False,False,False,False
+Twin shuriken catapult,ranged,2,3,4,-1,1,False,0,0,False,False,False,False,True,False
+Witch Staff,melee,2,2,3,0,1d3,False,0,0,False,False,False,False,False,False
+Wraithcannon,ranged,1,4,14,-4,1d6+1,False,0,0,False,False,False,False,False,False

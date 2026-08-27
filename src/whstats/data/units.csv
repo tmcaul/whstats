@@ -1,0 +1,20 @@
+army,unit_name,toughness,saving_throw,wounds,models,invuln,fnp,damage_modifier
+Tom,Eldrad Ulthran,4,6,5,1,4,,0
+Tom,Spiritseer,3,6,3,1,4,,0
+Tom,Guardian Defenders,3,4,1,11,,,0
+Tom,Storm Guardians,3,4,1,11,5,,0
+Tom,Wraithblades,6,2,3,5,4,,0
+Tom,Wraithguard (D-Scythe),6,2,3,5,,,0
+Tom,Wraithguard (Wraithcannon),6,2,3,5,,,0
+Tom,Windriders,4,4,2,3,6,,0
+Tom,Wraithknight with Ghostglaive,12,2,18,1,4,,-1
+Tom,Wraithlord,10,2,10,1,,,0
+Alf,Lucius the Eternal,5,2,6,1,4,,0
+Alf,Daemon Prince of Slaanesh with Wings,9,2,10,1,4,,0
+Alf,Lord Exultant,4,3,5,1,4,,0
+Alf,Lord Exultant (Euphoric Crown),4,3,5,1,4,,0
+Alf,Lord Kakophonist,5,2,6,1,4,,0
+Alf,Infractors,4,3,2,5,,,0
+Alf,Tormentors,4,3,2,5,,,0
+Alf,Flawless Blades,5,3,3,6,5,,0
+Alf,Noise Marines,5,3,2,6,,,0
