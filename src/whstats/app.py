@@ -508,7 +508,7 @@ if __name__ == "__main__":
         "https://docs.google.com/spreadsheets/d/1uqMFwcVcPISlDX2mWYYnykM0D3Sv8T1eJZzrZsoheWg/edit?gid=0#gid=0",
         width="stretch",
     )
-    if sidebar_col2.button("🔄 Refresh Army Data", width="stretch"):
+    if sidebar_col2.button("🔄 Reload", width="stretch"):
         load_armies.cache_clear()
         st.rerun()
 
