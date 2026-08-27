@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from whstats.sim import Unit, simulate, calculate_remaining_models
-from whstats.units import ARMIES
+from whstats.units import load_armies
 
 
 def _build_heatmap_figure(
@@ -237,14 +237,14 @@ def _weapons_to_editor_df(unit: Unit) -> pd.DataFrame:
 @st.fragment
 def render_unit_vs_unit_fragment():
     """Wrapped in a fragment so modifying inputs does NOT reset scroll page height"""
-    army_names = list(ARMIES.keys())
+    army_names = list(load_armies().keys())
     col1, col2 = st.columns(2)
 
     with col1:
         st.subheader("Attacker Setup")
         atk_army = st.selectbox("Attacker Army", army_names, key="atk_army_uvu")
 
-        atk_units = {u.name: u for u in ARMIES[atk_army]}
+        atk_units = {u.name: u for u in load_armies()[atk_army]}
         if st.session_state.get("atk_unit_uvu") not in atk_units:
             st.session_state.atk_unit_uvu = list(atk_units.keys())[0]
 
@@ -266,7 +266,7 @@ def render_unit_vs_unit_fragment():
         st.subheader("Defender Setup")
         def_army = st.selectbox("Defender Army", army_names, key="def_army_uvu")
 
-        def_units = {u.name: u for u in ARMIES[def_army]}
+        def_units = {u.name: u for u in load_armies()[def_army]}
         if st.session_state.get("def_unit_uvu") not in def_units:
             st.session_state.def_unit_uvu = list(def_units.keys())[0]
 
@@ -415,7 +415,7 @@ def render_unit_vs_unit_fragment():
 def render_army_unit_summary_page():
     st.title("Army")
 
-    army_names = list(ARMIES.keys())
+    army_names = list(load_armies().keys())
 
     def flip_armies_summary():
         st.session_state.atk_army_summary, st.session_state.def_army_summary = (
@@ -461,9 +461,9 @@ def render_army_unit_summary_page():
         )
 
     attackers_mod = apply_modifiers(
-        ARMIES[attacker_label], hit_mod, wound_mod, ap_mod, attacker_model_pct
+        load_armies()[attacker_label], hit_mod, wound_mod, ap_mod, attacker_model_pct
     )
-    defenders_mod = apply_modifiers(ARMIES[defender_label], 0, 0, 0, defender_model_pct)
+    defenders_mod = apply_modifiers(load_armies()[defender_label], 0, 0, 0, defender_model_pct)
 
     for phase, label in [("melee", "Melee Phase"), ("ranged", "Shooting Phase")]:
         st.divider()
@@ -486,7 +486,7 @@ if __name__ == "__main__":
     st.set_page_config(layout="wide", page_title="Warhammer 40k Sim")
 
     # Global Session State Init
-    army_names = list(ARMIES.keys())
+    army_names = list(load_armies().keys())
     default_attacker = army_names[0] if len(army_names) > 0 else None
     default_defender = (
         army_names[1] if len(army_names) > 1 else (army_names[0] if len(army_names) > 0 else None)
@@ -501,6 +501,11 @@ if __name__ == "__main__":
         st.session_state.atk_army_uvu = default_attacker
     if "def_army_uvu" not in st.session_state:
         st.session_state.def_army_uvu = default_defender
+
+    st.sidebar.link_button(
+        "Army Data ↗",
+        "https://docs.google.com/spreadsheets/d/1uqMFwcVcPISlDX2mWYYnykM0D3Sv8T1eJZzrZsoheWg/edit?gid=0#gid=0",
+    )
 
     pg = st.navigation([page_summary, page_uvu])
     pg.run()
