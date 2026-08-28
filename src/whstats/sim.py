@@ -33,6 +33,7 @@ class Weapon:
     hit_bonus: int = 0
     sustained_hits: bool = False
     lethal_hits: bool = False
+    devastating_wounds: bool = False
     reroll_hit_ones: bool = False
     reroll_all_hits: bool = False
     reroll_wound_ones: bool = False
@@ -58,6 +59,12 @@ class Unit:
     invuln: int | None = None
     fnp: int | None = None
     damage_modifier: int = 0
+    hit_bonus: int = 0
+    wound_bonus: int = 0
+
+    def __post_init__(self):
+        assert -1 <= self.hit_bonus <= 1, "expect hit bonus -1 -> 1"
+        assert -1 <= self.wound_bonus <= 1, "expect wound bonus -1 -> 1"
 
 
 def _to_wound(target: Unit, weapon: Weapon) -> int:
@@ -117,7 +124,8 @@ def simulate(target: Unit, weapon: Weapon, attacker: Unit, trials: int = 1000) -
             unmodified_hit_rerolls = np.random.randint(low=1, high=7, size=(trials, max_attacks))
             unmodified_hit_rolls = np.maximum(unmodified_hit_rolls, unmodified_hit_rerolls)
 
-        hit_rolls = unmodified_hit_rolls + weapon.hit_bonus
+        total_hit_bonus = max(-1, min(1, weapon.hit_bonus + target.hit_bonus))
+        hit_rolls = unmodified_hit_rolls + total_hit_bonus
         hits_mask = attack_mask & (hit_rolls >= weapon.skill)
         critical_hits = attack_mask & (unmodified_hit_rolls == 6)
 
@@ -140,15 +148,23 @@ def simulate(target: Unit, weapon: Weapon, attacker: Unit, trials: int = 1000) -
         unmodified_wound_rerolls = np.random.randint(low=1, high=7, size=(trials, max_attacks_sim))
         unmodified_wound_rolls = np.maximum(unmodified_wound_rolls, unmodified_wound_rerolls)
 
-    wound_rolls = unmodified_wound_rolls + weapon.wound_bonus
+    total_wound_bonus = max(-1, min(1, weapon.wound_bonus + target.wound_bonus))
+    wound_rolls = unmodified_wound_rolls + total_wound_bonus
     wounds_mask = hits_mask & (wound_rolls >= wound_thresh)
+    critical_wounds = hits_mask & (unmodified_wound_rolls == 6)
 
     if weapon.lethal_hits:
         wounds_mask[critical_hits] = True
 
+    if weapon.devastating_wounds:
+        wounds_mask = wounds_mask | critical_wounds
+
     save_thresh = _to_save(target, weapon)
     save_rolls = np.random.randint(low=1, high=7, size=(trials, max_attacks_sim))
     unsaved_mask = wounds_mask & (save_rolls < save_thresh)
+
+    if weapon.devastating_wounds:
+        unsaved_mask = unsaved_mask | critical_wounds
 
     if isinstance(weapon.damage, int):
         damage_matrix = np.where(unsaved_mask, weapon.damage, 0)
