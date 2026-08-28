@@ -219,6 +219,7 @@ def _weapons_to_editor_df(unit: Unit) -> pd.DataFrame:
         default_count = w.models_equipped if w.models_equipped is not None else unit.models
         rows.append(
             {
+                "Count": default_count,
                 "Weapon": w.name,
                 "Phase": w.phase,
                 "Attacks": _fmt_dice_or_int(w.attacks),
@@ -236,7 +237,6 @@ def _weapons_to_editor_df(unit: Unit) -> pd.DataFrame:
                 "Reroll All Hits": w.reroll_all_hits,
                 "Reroll Wound Ones": w.reroll_wound_ones,
                 "Reroll All Wounds": w.reroll_all_wounds,
-                "Count": default_count,
             }
         )
     return pd.DataFrame(rows)
@@ -338,6 +338,7 @@ def render_unit_vs_unit_fragment():
         width="stretch",
         num_rows="fixed",
         column_config={
+            "Count": st.column_config.NumberColumn(min_value=0, step=1),
             "Weapon": st.column_config.TextColumn(disabled=True),
             "Phase": st.column_config.TextColumn(disabled=True),
             "Attacks": st.column_config.TextColumn(disabled=True),
@@ -355,12 +356,11 @@ def render_unit_vs_unit_fragment():
             "Reroll All Hits": st.column_config.CheckboxColumn(),
             "Reroll Wound Ones": st.column_config.CheckboxColumn(),
             "Reroll All Wounds": st.column_config.CheckboxColumn(),
-            "Count": st.column_config.NumberColumn(min_value=1, step=1),
         },
     )
 
     trials = st.number_input(
-        "Simulation Trials", min_value=100, max_value=10000, step=500, value=2000, key="trials_uvu"
+        "Simulation Trials", min_value=100, max_value=10000, step=500, value=10000, key="trials_uvu"
     )
 
     weapons_by_name = {w.name: w for w in atk_unit.weapons}
@@ -429,7 +429,10 @@ def render_unit_vs_unit_fragment():
 
     st.divider()
     st.subheader("Weapon Detail")
-    phase_label = st.selectbox("Phase", ["Melee", "Shooting"], key="detail_phase_uvu")
+
+    detail_col1, detail_col2, detail_col3 = st.columns(3)
+    with detail_col1:
+        phase_label = st.selectbox("Phase", ["Melee", "Shooting"], key="detail_phase_uvu")
     phase_key = "melee" if phase_label == "Melee" else "ranged"
     detail_options = [w.name for w in atk_unit_mod.weapons if w.phase == phase_key]
 
@@ -438,8 +441,24 @@ def render_unit_vs_unit_fragment():
     else:
         if st.session_state.get("detail_wep_uvu") not in detail_options:
             st.session_state.detail_wep_uvu = detail_options[0]
-        detail_weapon_name = st.selectbox("Select Weapon", detail_options, key="detail_wep_uvu")
+        with detail_col2:
+            detail_weapon_name = st.selectbox("Select Weapon", detail_options, key="detail_wep_uvu")
         detail_weapon = next(w for w in atk_unit_mod.weapons if w.name == detail_weapon_name)
+
+        default_detail_count = (
+            detail_weapon.models_equipped
+            if detail_weapon.models_equipped is not None
+            else atk_unit_mod.models
+        )
+        with detail_col3:
+            detail_count = st.number_input(
+                "Count",
+                min_value=0,
+                step=1,
+                value=default_detail_count,
+                key=f"detail_count_uvu_{detail_weapon_name}",
+            )
+        detail_weapon = dataclasses.replace(detail_weapon, models_equipped=detail_count)
 
         with st.spinner("Simulating..."):
             damage_matrix = simulate(
@@ -482,7 +501,7 @@ def render_army_unit_summary_page():
     wound_mod = st.sidebar.slider("To Wound Modifier", -1, 1, 0, key="summary_wound")
     ap_mod = st.sidebar.slider("AP Modifier", -3, 1, 0, key="summary_ap")
     trials = st.sidebar.number_input(
-        "Simulation Trials", 100, 10000, 1000, 500, key="summary_trials"
+        "Simulation Trials", 100, 10000, 10000, 500, key="summary_trials"
     )
 
     header_col1, header_col2 = st.columns([3, 1])
