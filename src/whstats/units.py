@@ -33,6 +33,12 @@ def _parse_bool(raw):
     return str(raw).strip().lower() == "true"
 
 
+def _parse_int_or_default(raw, default: int = 0) -> int:
+    if pd.isna(raw) or str(raw).strip() == "":
+        return default
+    return int(raw)
+
+
 def _weapon_key(unit) -> str | None:
     """None means the weapon is generic (shared across units), not scoped to one unit."""
     if pd.isna(unit) or str(unit).strip() == "":
@@ -62,6 +68,7 @@ def load_armies() -> dict[str, list[Unit]]:
             hit_bonus=int(row["hit_bonus"]),
             sustained_hits=_parse_bool(row["sustained_hits"]),
             lethal_hits=_parse_bool(row["lethal_hits"]),
+            devastating_wounds=_parse_bool(row["devastating_wounds"]),
             reroll_hit_ones=_parse_bool(row["reroll_hit_ones"]),
             reroll_all_hits=_parse_bool(row["reroll_all_hits"]),
             reroll_wound_ones=_parse_bool(row["reroll_wound_ones"]),
@@ -92,6 +99,8 @@ def load_armies() -> dict[str, list[Unit]]:
             invuln=_parse_optional_int(urow["invuln"]),
             fnp=_parse_optional_int(urow["fnp"]),
             damage_modifier=int(urow["damage_modifier"]),
+            hit_bonus=_parse_int_or_default(urow["hit_bonus"]),
+            wound_bonus=_parse_int_or_default(urow["wound_bonus"]),
         )
         armies.setdefault(army, []).append(unit)
 

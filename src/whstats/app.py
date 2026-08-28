@@ -228,10 +228,36 @@ def _weapons_to_editor_df(unit: Unit) -> pd.DataFrame:
                 "Damage": _fmt_dice_or_int(w.damage),
                 "Hit Bonus": w.hit_bonus,
                 "Wound Bonus": w.wound_bonus,
+                "Torrent": w.torrent,
+                "Sustained Hits": w.sustained_hits,
+                "Lethal Hits": w.lethal_hits,
+                "Devastating Wounds": w.devastating_wounds,
+                "Reroll Hit Ones": w.reroll_hit_ones,
+                "Reroll All Hits": w.reroll_all_hits,
+                "Reroll Wound Ones": w.reroll_wound_ones,
+                "Reroll All Wounds": w.reroll_all_wounds,
                 "Count": default_count,
             }
         )
     return pd.DataFrame(rows)
+
+
+def _defender_to_editor_df(unit: Unit) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "Models": unit.models,
+                "Toughness": unit.toughness,
+                "Wounds": unit.wounds,
+                "Save": unit.saving_throw,
+                "Invuln (7 = None)": unit.invuln if unit.invuln is not None else 7,
+                "FNP (7 = None)": unit.fnp if unit.fnp is not None else 7,
+                "Damage Modifier": unit.damage_modifier,
+                "Hit Bonus": unit.hit_bonus,
+                "Wound Bonus": unit.wound_bonus,
+            }
+        ]
+    )
 
 
 @st.fragment
@@ -273,39 +299,35 @@ def render_unit_vs_unit_fragment():
         def_unit_name = st.selectbox("Defender Unit", list(def_units.keys()), key="def_unit_uvu")
         def_unit = def_units[def_unit_name]
 
-        if "prev_def_unit_uvu" not in st.session_state:
-            st.session_state.prev_def_unit_uvu = def_unit_name
-            st.session_state.def_models_uvu = def_unit.models
-            st.session_state.def_t_uvu = def_unit.toughness
-            st.session_state.def_sv_uvu = def_unit.saving_throw
-            st.session_state.def_w_uvu = def_unit.wounds
-            st.session_state.def_inv_uvu = def_unit.invuln if def_unit.invuln is not None else 7
-            st.session_state.def_fnp_uvu = def_unit.fnp if def_unit.fnp is not None else 7
-            st.session_state.def_dmg_mod_uvu = def_unit.damage_modifier
-        elif st.session_state.prev_def_unit_uvu != def_unit_name:
-            st.session_state.def_models_uvu = def_unit.models
-            st.session_state.def_t_uvu = def_unit.toughness
-            st.session_state.def_sv_uvu = def_unit.saving_throw
-            st.session_state.def_w_uvu = def_unit.wounds
-            st.session_state.def_inv_uvu = def_unit.invuln if def_unit.invuln is not None else 7
-            st.session_state.def_fnp_uvu = def_unit.fnp if def_unit.fnp is not None else 7
-            st.session_state.def_dmg_mod_uvu = def_unit.damage_modifier
-            st.session_state.prev_def_unit_uvu = def_unit_name
+        def_stats_df = _defender_to_editor_df(def_unit)
+        edited_def_row = st.data_editor(
+            def_stats_df,
+            key=f"def_stats_editor_uvu_{def_army}_{def_unit_name}",
+            hide_index=True,
+            width="stretch",
+            num_rows="fixed",
+            column_config={
+                "Models": st.column_config.NumberColumn(min_value=1, step=1),
+                "Toughness": st.column_config.NumberColumn(min_value=1, step=1),
+                "Wounds": st.column_config.NumberColumn(min_value=1, step=1),
+                "Save": st.column_config.NumberColumn(min_value=2, max_value=7, step=1),
+                "Invuln (7 = None)": st.column_config.NumberColumn(min_value=2, max_value=7, step=1),
+                "FNP (7 = None)": st.column_config.NumberColumn(min_value=2, max_value=7, step=1),
+                "Damage Modifier": st.column_config.NumberColumn(max_value=0, step=1),
+                "Hit Bonus": st.column_config.NumberColumn(min_value=-1, max_value=1, step=1),
+                "Wound Bonus": st.column_config.NumberColumn(min_value=-1, max_value=1, step=1),
+            },
+        ).iloc[0]
 
-        def_models = st.number_input(
-            "Starting Models (Defender)", min_value=1, key="def_models_uvu"
-        )
-        dc1, dc2 = st.columns(2)
-        with dc1:
-            def_t = st.number_input("Toughness", min_value=1, key="def_t_uvu")
-            def_w = st.number_input("Wounds", min_value=1, key="def_w_uvu")
-            def_fnp = st.number_input("FNP (7 = None)", min_value=2, max_value=7, key="def_fnp_uvu")
-        with dc2:
-            def_sv = st.number_input("Save", min_value=2, max_value=7, key="def_sv_uvu")
-            def_inv = st.number_input(
-                "Invuln (7 = None)", min_value=2, max_value=7, key="def_inv_uvu"
-            )
-            def_dmg_mod = st.number_input("Damage Modifier", max_value=0, key="def_dmg_mod_uvu")
+        def_models = int(edited_def_row["Models"])
+        def_t = int(edited_def_row["Toughness"])
+        def_w = int(edited_def_row["Wounds"])
+        def_sv = int(edited_def_row["Save"])
+        def_inv = int(edited_def_row["Invuln (7 = None)"])
+        def_fnp = int(edited_def_row["FNP (7 = None)"])
+        def_dmg_mod = int(edited_def_row["Damage Modifier"])
+        def_hit_bonus = int(edited_def_row["Hit Bonus"])
+        def_wound_bonus = int(edited_def_row["Wound Bonus"])
 
     st.markdown("**Attacker Weapons**")
     weapons_df = _weapons_to_editor_df(atk_unit)
@@ -325,6 +347,14 @@ def render_unit_vs_unit_fragment():
             "AP": st.column_config.NumberColumn(max_value=0, step=1),
             "Hit Bonus": st.column_config.NumberColumn(min_value=-1, max_value=1, step=1),
             "Wound Bonus": st.column_config.NumberColumn(min_value=-1, max_value=1, step=1),
+            "Torrent": st.column_config.CheckboxColumn(),
+            "Sustained Hits": st.column_config.CheckboxColumn(),
+            "Lethal Hits": st.column_config.CheckboxColumn(),
+            "Devastating Wounds": st.column_config.CheckboxColumn(),
+            "Reroll Hit Ones": st.column_config.CheckboxColumn(),
+            "Reroll All Hits": st.column_config.CheckboxColumn(),
+            "Reroll Wound Ones": st.column_config.CheckboxColumn(),
+            "Reroll All Wounds": st.column_config.CheckboxColumn(),
             "Count": st.column_config.NumberColumn(min_value=1, step=1),
         },
     )
@@ -342,6 +372,14 @@ def render_unit_vs_unit_fragment():
             ap=int(row["AP"]),
             hit_bonus=int(row["Hit Bonus"]),
             wound_bonus=int(row["Wound Bonus"]),
+            torrent=bool(row["Torrent"]),
+            sustained_hits=bool(row["Sustained Hits"]),
+            lethal_hits=bool(row["Lethal Hits"]),
+            devastating_wounds=bool(row["Devastating Wounds"]),
+            reroll_hit_ones=bool(row["Reroll Hit Ones"]),
+            reroll_all_hits=bool(row["Reroll All Hits"]),
+            reroll_wound_ones=bool(row["Reroll Wound Ones"]),
+            reroll_all_wounds=bool(row["Reroll All Wounds"]),
             models_equipped=int(row["Count"]),
         )
         for _, row in edited_df.iterrows()
@@ -359,6 +397,8 @@ def render_unit_vs_unit_fragment():
         invuln=parsed_invuln,
         fnp=parsed_fnp,
         damage_modifier=def_dmg_mod,
+        hit_bonus=def_hit_bonus,
+        wound_bonus=def_wound_bonus,
     )
 
     st.divider()
